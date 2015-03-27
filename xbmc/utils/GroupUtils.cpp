@@ -33,6 +33,8 @@
 using namespace std;
 
 typedef map<int, set<CFileItemPtr> > SetMap;
+typedef map<std::string, set<CFileItemPtr> > MovieMap;
+typedef map<std::string, set<CFileItemPtr> > EpisodeMap;
 
 bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileItemList &items, CFileItemList &groupedItems, GroupAttribute groupAttributes /* = GroupAttributeNone */)
 {
@@ -44,6 +46,8 @@ bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileI
     return true;
 
   SetMap setMap;
+  MovieMap movieMap;
+  EpisodeMap episodeMap;
   for (int index = 0; index < items.Size(); index++)
   {
     bool add = true;
@@ -55,6 +59,18 @@ bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileI
     {
       add = false;
       setMap[item->GetVideoInfoTag()->m_iSetId].insert(item);
+    }
+    else if (groupBy & GroupByMovie &&
+      item->HasVideoInfoTag() && !item->GetVideoInfoTag()->m_strIMDBNumber.empty())
+    {
+      add = false;
+      movieMap[item->GetVideoInfoTag()->m_strIMDBNumber].insert(item);
+    }
+    else if (groupBy & GroupByEpisode &&
+      item->HasVideoInfoTag() && !item->GetVideoInfoTag()->m_strUniqueId.empty())
+    {
+      add = false;
+      episodeMap[item->GetVideoInfoTag()->m_strUniqueId].insert(item);
     }
 
     if (add)
@@ -107,19 +123,19 @@ bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileI
           ratings++;
           setInfo->m_fRating += movieInfo->m_fRating;
         }
-        
+
         // handle year
         if (movieInfo->m_iYear > setInfo->m_iYear)
           setInfo->m_iYear = movieInfo->m_iYear;
-        
+
         // handle lastplayed
         if (movieInfo->m_lastPlayed.IsValid() && movieInfo->m_lastPlayed > setInfo->m_lastPlayed)
           setInfo->m_lastPlayed = movieInfo->m_lastPlayed;
-        
+
         // handle dateadded
         if (movieInfo->m_dateAdded.IsValid() && movieInfo->m_dateAdded > setInfo->m_dateAdded)
           setInfo->m_dateAdded = movieInfo->m_dateAdded;
-        
+
         // handle playcount/watched
         setInfo->m_playCount += movieInfo->m_playCount;
         if (movieInfo->m_playCount > 0)
@@ -136,8 +152,182 @@ bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileI
 
       if (ratings > 1)
         pItem->GetVideoInfoTag()->m_fRating /= ratings;
-        
+
       setInfo->m_playCount = iWatched >= (int)set->second.size() ? (setInfo->m_playCount / set->second.size()) : 0;
+      pItem->SetProperty("total", (int)set->second.size());
+      pItem->SetProperty("watched", iWatched);
+      pItem->SetProperty("unwatched", (int)set->second.size() - iWatched);
+      pItem->SetOverlayImage(CGUIListItem::ICON_OVERLAY_UNWATCHED, setInfo->m_playCount > 0);
+
+      groupedItems.Add(pItem);
+    }
+  }
+
+  if ((groupBy & GroupByMovie) && movieMap.size() > 0)
+  {
+    CVideoDbUrl itemsUrl;
+    if (!itemsUrl.FromString(baseDir))
+      return false;
+
+    for (MovieMap::const_iterator set = movieMap.begin(); set != movieMap.end(); set++)
+    {
+
+      // only one copy of the movie, so just re-add it
+      if (set->second.size() == 1 && (groupAttributes & GroupAttributeIgnoreSingleItems))
+      {
+        groupedItems.Add(*set->second.begin());
+        continue;
+      }
+
+      CFileItemPtr pItem(new CFileItem());
+
+      std::string basePath = "videodb://movies/titles/";
+      CVideoDbUrl videoUrl;
+      if (!videoUrl.FromString(basePath))
+        pItem->SetPath(basePath);
+      else
+      {
+        videoUrl.AddOptions(itemsUrl.GetOptionsString());
+        videoUrl.AddOption("imbdid", set->first);
+        pItem->SetPath(videoUrl.ToString());
+      }
+      pItem->m_bIsFolder = true;
+
+      CVideoInfoTag* setInfo = pItem->GetVideoInfoTag();
+      *setInfo = *(*set->second.begin())->GetVideoInfoTag();
+      int ratings = 0;
+      int iWatched = 0;
+      setInfo->m_fRating = 0;
+      setInfo->m_playCount = 0;
+
+      for (std::set<CFileItemPtr>::const_iterator movie = set->second.begin(); movie != set->second.end(); movie++)
+      {
+        CVideoInfoTag* movieInfo = (*movie)->GetVideoInfoTag();
+        // handle rating
+        if (movieInfo->m_fRating > 0.0f)
+        {
+          ratings++;
+          setInfo->m_fRating += movieInfo->m_fRating;
+        }
+
+        // prefer highest quality source
+        if (setInfo->m_streamDetails.GetVideoHeight() < movieInfo->m_streamDetails.GetVideoHeight())
+        {
+          CFileItem video(movieInfo->m_basePath, false);
+          if (video.IsVideo())
+            setInfo->m_basePath = movieInfo->m_basePath;
+          setInfo->m_streamDetails = movieInfo->m_streamDetails;
+        }
+
+        // handle lastplayed
+        if (movieInfo->m_lastPlayed.IsValid() && movieInfo->m_lastPlayed > setInfo->m_lastPlayed)
+          setInfo->m_lastPlayed = movieInfo->m_lastPlayed;
+
+        // handle dateadded
+        if (movieInfo->m_dateAdded.IsValid() && movieInfo->m_dateAdded > setInfo->m_dateAdded)
+          setInfo->m_dateAdded = movieInfo->m_dateAdded;
+
+        // handle playcount/watched
+        setInfo->m_playCount += movieInfo->m_playCount;
+        if (movieInfo->m_playCount > 0)
+          iWatched++;
+
+      }
+
+      if (ratings > 1)
+        pItem->GetVideoInfoTag()->m_fRating /= ratings;
+
+      pItem->SetProperty("total", (int)set->second.size());
+      pItem->SetProperty("watched", iWatched);
+      pItem->SetProperty("unwatched", (int)set->second.size() - iWatched);
+      pItem->SetOverlayImage(CGUIListItem::ICON_OVERLAY_UNWATCHED, setInfo->m_playCount > 0);
+
+      groupedItems.Add(pItem);
+    }
+  }
+
+  if ((groupBy & GroupByEpisode) && episodeMap.size() > 0)
+  {
+    CVideoDbUrl itemsUrl;
+    if (!itemsUrl.FromString(baseDir))
+      return false;
+    bool season_naming = true;
+
+    CUrlOptions::UrlOptions::const_iterator option = itemsUrl.GetOptions().find("season");
+    if (option != itemsUrl.GetOptions().end())
+    {
+      if (option->second.asInteger() != -1)
+        season_naming = false;
+    }
+
+    for (EpisodeMap::const_iterator set = episodeMap.begin(); set != episodeMap.end(); set++)
+    {
+
+      // only one copy of the episode, so just re-add it
+      if (set->second.size() == 1 && (groupAttributes & GroupAttributeIgnoreSingleItems))
+      {
+        groupedItems.Add(*set->second.begin());
+        continue;
+      }
+
+      CFileItemPtr pItem(new CFileItem());
+
+      std::string basePath = baseDir;
+      CVideoDbUrl videoUrl;
+      if (!videoUrl.FromString(baseDir))
+        pItem->SetPath(basePath);
+      else
+      {
+        videoUrl.AddOptions(itemsUrl.GetOptionsString());
+        videoUrl.AddOption("tvepisodenumber", set->first);
+        pItem->SetPath(videoUrl.ToString());
+      }
+
+      pItem->m_bIsFolder = true;
+      pItem->m_strTitle = (*set->second.begin())->GetVideoInfoTag()->m_strTitle;
+      CVideoInfoTag* setInfo = pItem->GetVideoInfoTag();
+      *setInfo = *(*set->second.begin())->GetVideoInfoTag();
+      int ratings = 0;
+      int iWatched = 0;
+      setInfo->m_fRating = 0;
+      setInfo->m_playCount = 0;
+      for (std::set<CFileItemPtr>::const_iterator episode = set->second.begin(); episode != set->second.end(); episode++)
+      {
+        CVideoInfoTag* episodeInfo = (*episode)->GetVideoInfoTag();
+        // handle rating
+        if (episodeInfo->m_fRating > 0.0f)
+        {
+          ratings++;
+          setInfo->m_fRating += episodeInfo->m_fRating;
+        }
+
+        // prefer highest quality source
+        if (setInfo->m_streamDetails.GetVideoHeight() < episodeInfo->m_streamDetails.GetVideoHeight())
+        {
+          CFileItem video(episodeInfo->m_basePath, false);
+          if (video.IsVideo())
+            setInfo->m_basePath = episodeInfo->m_basePath;
+          setInfo->m_streamDetails = episodeInfo->m_streamDetails;
+        }
+
+        // handle lastplayed
+        if (episodeInfo->m_lastPlayed.IsValid() && episodeInfo->m_lastPlayed > setInfo->m_lastPlayed)
+          setInfo->m_lastPlayed = episodeInfo->m_lastPlayed;
+
+        // handle dateadded
+        if (episodeInfo->m_dateAdded.IsValid() && episodeInfo->m_dateAdded > setInfo->m_dateAdded)
+          setInfo->m_dateAdded = episodeInfo->m_dateAdded;
+
+        // handle playcount/watched
+        setInfo->m_playCount += episodeInfo->m_playCount;
+        if (episodeInfo->m_playCount > 0)
+          iWatched++;
+
+      }
+
+      if (ratings > 1)
+        pItem->GetVideoInfoTag()->m_fRating /= ratings;
+
       pItem->SetProperty("total", (int)set->second.size());
       pItem->SetProperty("watched", iWatched);
       pItem->SetProperty("unwatched", (int)set->second.size() - iWatched);
