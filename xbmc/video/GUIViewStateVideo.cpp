@@ -227,27 +227,27 @@ CGUIViewStateWindowVideoNav::CGUIViewStateWindowVideoNav(const CFileItemList& it
       {
         if (params.GetSeason() > -1)
         {
-          AddSortMethod(SortByEpisodeNumber, 20359, LABEL_MASKS("%E. %T", "%R", "%E. %T", "%R"));  // Episode. Title, Rating | empty, empty
-          AddSortMethod(SortByRating, 563, LABEL_MASKS("%E. %T", "%R", "%E. %T", "%R"));  // Episode. Title, Rating | empty, empty
-          AddSortMethod(SortByMPAA, 20074, LABEL_MASKS("%E. %T", "%O", "%E. %T", "%O"));  // Episode. Title, MPAA | empty, empty
-          AddSortMethod(SortByProductionCode, 20368, LABEL_MASKS("%E. %T","%P", "%E. %T","%P"));  // Episode. Title, ProductionCode | Episode. Title, ProductionCode
-          AddSortMethod(SortByDate, 552, LABEL_MASKS("%E. %T","%J","%E. %T","%J"));  // Episode. Title, Date | Episode. Title, Date
+          AddSortMethod(SortByEpisodeNumber, 20359, LABEL_MASKS("%E. %T", "%R", "%E. %T", "%R"), SortAttributeIgnoreFolders);  // Episode. Title, Rating | empty, empty
+          AddSortMethod(SortByRating, 563, LABEL_MASKS("%E. %T", "%R", "%E. %T", "%R"), SortAttributeIgnoreFolders);  // Episode. Title, Rating | empty, empty
+          AddSortMethod(SortByMPAA, 20074, LABEL_MASKS("%E. %T", "%O", "%E. %T", "%O"), SortAttributeIgnoreFolders);  // Episode. Title, MPAA | empty, empty
+          AddSortMethod(SortByProductionCode, 20368, LABEL_MASKS("%E. %T", "%P", "%E. %T", "%P"), SortAttributeIgnoreFolders);  // Episode. Title, ProductionCode | Episode. Title, ProductionCode
+          AddSortMethod(SortByDate, 552, LABEL_MASKS("%E. %T", "%J", "%E. %T", "%J"), SortAttributeIgnoreFolders);  // Episode. Title, Date | Episode. Title, Date
 
           if (CMediaSettings::Get().GetWatchedMode(items.GetContent()) == WatchedModeAll)
-            AddSortMethod(SortByPlaycount, 567, LABEL_MASKS("%E. %T", "%V", "%E. %T", "%V"));  // Episode. Title, Playcount | empty, empty
+            AddSortMethod(SortByPlaycount, 567, LABEL_MASKS("%E. %T", "%V", "%E. %T", "%V"), SortAttributeIgnoreFolders);  // Episode. Title, Playcount | empty, empty
         }
         else
         {
-          AddSortMethod(SortByEpisodeNumber, 20359, LABEL_MASKS("%H. %T", "%R", "%H. %T", "%R"));  // Order. Title, Rating | emtpy, empty
-          AddSortMethod(SortByRating, 563, LABEL_MASKS("%H. %T", "%R", "%H. %T", "%R"));  // Order. Title, Rating | emtpy, empty
-          AddSortMethod(SortByMPAA, 20074, LABEL_MASKS("%H. %T", "%O", "%H. %T", "%O"));  // Order. Title, MPAA | emtpy, empty
-          AddSortMethod(SortByProductionCode, 20368, LABEL_MASKS("%H. %T","%P", "%H. %T","%P"));  // Order. Title, ProductionCode | Episode. Title, ProductionCode
-          AddSortMethod(SortByDate, 552, LABEL_MASKS("%H. %T","%J","%H. %T","%J"));  // Order. Title, Date | Episode. Title, Date
+          AddSortMethod(SortByEpisodeNumber, 20359, LABEL_MASKS("%H. %T", "%R", "%H. %T", "%R"), SortAttributeIgnoreFolders);  // Order. Title, Rating | emtpy, empty
+          AddSortMethod(SortByRating, 563, LABEL_MASKS("%H. %T", "%R", "%H. %T", "%R"), SortAttributeIgnoreFolders);  // Order. Title, Rating | emtpy, empty
+          AddSortMethod(SortByMPAA, 20074, LABEL_MASKS("%H. %T", "%O", "%H. %T", "%O"), SortAttributeIgnoreFolders);  // Order. Title, MPAA | emtpy, empty
+          AddSortMethod(SortByProductionCode, 20368, LABEL_MASKS("%H. %T", "%P", "%H. %T", "%P"), SortAttributeIgnoreFolders);  // Order. Title, ProductionCode | Episode. Title, ProductionCode
+          AddSortMethod(SortByDate, 552, LABEL_MASKS("%H. %T", "%J", "%H. %T", "%J"), SortAttributeIgnoreFolders);  // Order. Title, Date | Episode. Title, Date
 
           if (CMediaSettings::Get().GetWatchedMode(items.GetContent()) == WatchedModeAll)
-            AddSortMethod(SortByPlaycount, 567, LABEL_MASKS("%H. %T", "%V", "%H. %T", "%V"));  // Order. Title, Playcount | empty, empty
+            AddSortMethod(SortByPlaycount, 567, LABEL_MASKS("%H. %T", "%V", "%H. %T", "%V"), SortAttributeIgnoreFolders);  // Order. Title, Playcount | empty, empty
         }
-        AddSortMethod(SortByLabel, sortAttributes, 551, LABEL_MASKS("%T", "%R", "%T", "%R"));  // Title, Rating | empty, empty
+        AddSortMethod(SortByLabel, /* sortAttributes */ SortAttributeIgnoreFolders, 551, LABEL_MASKS("%T", "%R", "%T", "%R"));  // Title, Rating | empty, empty
 
         const CViewState *viewState = CViewStateSettings::Get().Get("videonavepisodes");
         SetSortMethod(viewState->m_sortDescription);

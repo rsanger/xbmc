@@ -261,12 +261,68 @@ bool CVideoThumbLoader::LoadItem(CFileItem* pItem)
 
   return result;
 }
+typedef std::shared_ptr<CFileItemList> CFileItemListPtr;
+bool CVideoThumbLoader::HandleMergedCFileList(CFileItemList *dir, bool cached) {
+  std::set<CStreamDetail::StreamType> streamTypes;
+  streamTypes.insert(CStreamDetail::VIDEO);
+  streamTypes.insert(CStreamDetail::AUDIO);
+  streamTypes.insert(CStreamDetail::SUBTITLE);
+
+  bool success = true;
+  CFileItemPtr thebest = dir->Get(0);
+  for (auto i = 0; i < dir->Size(); i++) {
+    bool winning;
+    if (cached)
+      winning = LoadItemCached(dir->Get(i).get());
+    else
+      winning = LoadItemLookup(dir->Get(i).get());
+    success &= winning;
+    auto itemInfo = dir->Get(i).get()->GetVideoInfoTag();
+
+    itemInfo->m_streamDetails.DetermineBestStreams();
+    if (itemInfo->m_streamDetails.GetVideoStreamCount()) {
+      const CStreamDetail *stream = NULL, *beststream = NULL;
+
+      stream = itemInfo->m_streamDetails.GetNthStream(CStreamDetail::VIDEO, 0);
+      beststream = thebest->GetVideoInfoTag()->m_streamDetails.GetNthStream(CStreamDetail::VIDEO, 0);
+
+      if (stream && beststream) {
+        if (const_cast<CStreamDetail *>(beststream)->IsWorseThan(const_cast<CStreamDetail *>(stream)))
+          thebest = dir->Get(i);
+      }
+      else if (!beststream && stream) {
+        thebest = dir->Get(i);
+      }
+    }
+  }
+  /* Show the best */
+  dir->GetVideoInfoTag()->m_streamDetails.DetermineBestStreams();
+
+  /* XXX add this in properly TODO */
+  if (dir->GetProperty("contextmenulabel(0)").isNull()) {
+    dir->SetProperty("contextmenulabel(0)", "List All Alternatives");
+    dir->SetProperty("contextmenuaction(0)", "ActivateWindow(Videos, " + dir->GetPath() + ")");
+  }
+
+  // Cache label this is already formated and we don't want to change that
+  std::string tmp = dir->GetLabel();
+  if (thebest.get()) {
+    dir->SetFromVideoInfoTag(*thebest->GetVideoInfoTag());
+  }
+  dir->SetLabel(tmp);
+
+  return success;
+}
 
 bool CVideoThumbLoader::LoadItemCached(CFileItem* pItem)
 {
   if (pItem->m_bIsShareOrDrive
   ||  pItem->IsParentFolder())
     return false;
+
+  if (typeid(*pItem) == typeid(CFileItemList)) {
+    HandleMergedCFileList(dynamic_cast<CFileItemList *>(pItem), true);
+  }
 
   m_videoDatabase->Open();
 
@@ -330,6 +386,10 @@ bool CVideoThumbLoader::LoadItemLookup(CFileItem* pItem)
       pItem->GetVideoInfoTag()->m_type != MediaTypeEpisode    &&
       pItem->GetVideoInfoTag()->m_type != MediaTypeMusicVideo)
     return false; // Nothing to do here
+
+  if (typeid(*pItem) == typeid(CFileItemList)) {
+    HandleMergedCFileList(dynamic_cast<CFileItemList *>(pItem), false);
+  }
 
   DetectAndAddMissingItemData(*pItem);
 

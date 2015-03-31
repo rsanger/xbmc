@@ -36,6 +36,49 @@ typedef map<int, set<CFileItemPtr> > SetMap;
 typedef map<std::string, set<CFileItemPtr> > MovieMap;
 typedef map<std::string, set<CFileItemPtr> > EpisodeMap;
 
+typedef std::shared_ptr<CFileItemList> CFileItemListPtr;
+
+static void combine_entries(CFileItemListPtr &grouped, MovieMap::const_iterator &set) {
+  
+  CVideoInfoTag* groupInfo = grouped.get()->GetVideoInfoTag();
+
+  int ratings = 0;
+
+  groupInfo->m_playCount = 0;
+  groupInfo->m_fRating = 0.0f;
+
+  for (std::set<CFileItemPtr>::const_iterator item = set->second.begin(); item != set->second.end(); item++)
+  {
+    grouped->Add(*item);
+    CVideoInfoTag* itemInfo = (*item)->GetVideoInfoTag();
+    // handle rating
+    if (itemInfo->m_fRating > 0.0f)
+    {
+      ratings++;
+      groupInfo->m_fRating += itemInfo->m_fRating;
+    }
+
+    // handle lastplayed
+    if (itemInfo->m_lastPlayed.IsValid() && itemInfo->m_lastPlayed > groupInfo->m_lastPlayed)
+      groupInfo->m_lastPlayed = itemInfo->m_lastPlayed;
+
+    // handle dateadded
+    if (itemInfo->m_dateAdded.IsValid() && itemInfo->m_dateAdded > groupInfo->m_dateAdded)
+      groupInfo->m_dateAdded = itemInfo->m_dateAdded;
+
+    // handle playcount/watched
+    groupInfo->m_playCount += itemInfo->m_playCount;
+  }
+
+  if (ratings > 1)
+    groupInfo->m_fRating /= ratings;
+
+  grouped->SetProperty("total", (int)set->second.size());
+  grouped->SetProperty("watched", groupInfo->m_playCount);
+  grouped->SetProperty("unwatched", (int)set->second.size() /*- iWatched*/);
+  grouped->SetOverlayImage(CGUIListItem::ICON_OVERLAY_UNWATCHED, groupInfo->m_playCount > 0);
+}
+
 bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileItemList &items, CFileItemList &groupedItems, GroupAttribute groupAttributes /* = GroupAttributeNone */)
 {
   if (groupBy == GroupByNone)
@@ -158,6 +201,7 @@ bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileI
       pItem->SetProperty("watched", iWatched);
       pItem->SetProperty("unwatched", (int)set->second.size() - iWatched);
       pItem->SetOverlayImage(CGUIListItem::ICON_OVERLAY_UNWATCHED, setInfo->m_playCount > 0);
+      pItem->m_bIsFolder = true;
 
       groupedItems.Add(pItem);
     }
@@ -179,68 +223,42 @@ bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileI
         continue;
       }
 
-      CFileItemPtr pItem(new CFileItem());
+      CFileItemListPtr pItem(new CFileItemList());
+      //pItem->Add(*itItem->second.begin());
+      pItem->SetFromVideoInfoTag(*set->second.begin()->get()->GetVideoInfoTag());
+      // Turns out path gets booped by SetFromVideoInfoTag
+      pItem->SetPath(set->second.begin()->get()->GetPath());
+      // This aint do nothing GRR!! Sort does not try this field :(
+      pItem->SetSortLabel(set->second.begin()->get()->GetSortLabel());
+      pItem->SetLabel("Loading Duplicates...");
+      if (set->second.begin()->get()->GetVideoInfoTag()->m_strSortTitle.empty())
+        pItem->GetVideoInfoTag()->m_strSortTitle = set->second.begin()->get()->GetVideoInfoTag()->m_strTitle;
+      else
+        pItem->GetVideoInfoTag()->m_strSortTitle = set->second.begin()->get()->GetVideoInfoTag()->m_strSortTitle;
+      set->second.begin()->get()->GetVideoInfoTag()->m_basePath = set->second.begin()->get()->GetVideoInfoTag()->GetPath();
+      //CFileItemListPtr pItem(new CFileItemList());
+      //CFileItemPtr pItem(new CFileItem());
 
       std::string basePath = "videodb://movies/titles/";
       CVideoDbUrl videoUrl;
-      if (!videoUrl.FromString(basePath))
+      if (!videoUrl.FromString(basePath)) {
         pItem->SetPath(basePath);
-      else
-      {
+      }
+      else {
         videoUrl.AddOptions(itemsUrl.GetOptionsString());
         videoUrl.AddOption("imbdid", set->first);
         pItem->SetPath(videoUrl.ToString());
       }
       pItem->m_bIsFolder = true;
 
-      CVideoInfoTag* setInfo = pItem->GetVideoInfoTag();
-      *setInfo = *(*set->second.begin())->GetVideoInfoTag();
-      int ratings = 0;
-      int iWatched = 0;
-      setInfo->m_fRating = 0;
-      setInfo->m_playCount = 0;
+      pItem->GetVideoInfoTag()->m_strTitle = (*set->second.begin())->GetVideoInfoTag()->m_strTitle;
+      //CVideoInfoTag* setInfo = pItem->GetVideoInfoTag();
+      //*setInfo = *(*set->second.begin())->GetVideoInfoTag();
 
-      for (std::set<CFileItemPtr>::const_iterator movie = set->second.begin(); movie != set->second.end(); movie++)
-      {
-        CVideoInfoTag* movieInfo = (*movie)->GetVideoInfoTag();
-        // handle rating
-        if (movieInfo->m_fRating > 0.0f)
-        {
-          ratings++;
-          setInfo->m_fRating += movieInfo->m_fRating;
-        }
+      combine_entries(pItem, set);
 
-        // prefer highest quality source
-        if (setInfo->m_streamDetails.GetVideoHeight() < movieInfo->m_streamDetails.GetVideoHeight())
-        {
-          CFileItem video(movieInfo->m_basePath, false);
-          if (video.IsVideo())
-            setInfo->m_basePath = movieInfo->m_basePath;
-          setInfo->m_streamDetails = movieInfo->m_streamDetails;
-        }
-
-        // handle lastplayed
-        if (movieInfo->m_lastPlayed.IsValid() && movieInfo->m_lastPlayed > setInfo->m_lastPlayed)
-          setInfo->m_lastPlayed = movieInfo->m_lastPlayed;
-
-        // handle dateadded
-        if (movieInfo->m_dateAdded.IsValid() && movieInfo->m_dateAdded > setInfo->m_dateAdded)
-          setInfo->m_dateAdded = movieInfo->m_dateAdded;
-
-        // handle playcount/watched
-        setInfo->m_playCount += movieInfo->m_playCount;
-        if (movieInfo->m_playCount > 0)
-          iWatched++;
-
-      }
-
-      if (ratings > 1)
-        pItem->GetVideoInfoTag()->m_fRating /= ratings;
-
-      pItem->SetProperty("total", (int)set->second.size());
-      pItem->SetProperty("watched", iWatched);
-      pItem->SetProperty("unwatched", (int)set->second.size() - iWatched);
-      pItem->SetOverlayImage(CGUIListItem::ICON_OVERLAY_UNWATCHED, setInfo->m_playCount > 0);
+      if (typeid(*pItem) == typeid(CFileItemList))
+        int x = 0;
 
       groupedItems.Add(pItem);
     }
@@ -270,7 +288,24 @@ bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileI
         continue;
       }
 
-      CFileItemPtr pItem(new CFileItem());
+      CFileItemListPtr pItem(new CFileItemList());
+      //pItem->Add(*itItem->second.begin());
+      pItem->SetFromVideoInfoTag(*set->second.begin()->get()->GetVideoInfoTag());
+      // Turns out path gets booped by SetFromVideoInfoTag
+      pItem->SetPath(set->second.begin()->get()->GetPath());
+      // This aint do nothing GRR!! Sort does not try this field :(
+      pItem->SetSortLabel(set->second.begin()->get()->GetSortLabel());
+      pItem->SetLabel("Loading Duplicates...");
+      pItem->GetVideoInfoTag()->m_basePath = "";
+      pItem->GetVideoInfoTag()->m_strFileNameAndPath = "";
+      pItem->GetVideoInfoTag()->m_strTitle = "Loading Duplicates...";
+      if (set->second.begin()->get()->GetVideoInfoTag()->m_strSortTitle.empty())
+        pItem->GetVideoInfoTag()->m_strSortTitle = set->second.begin()->get()->GetVideoInfoTag()->m_strTitle;
+      else
+        pItem->GetVideoInfoTag()->m_strSortTitle = set->second.begin()->get()->GetVideoInfoTag()->m_strSortTitle;
+      set->second.begin()->get()->GetVideoInfoTag()->m_basePath = set->second.begin()->get()->GetVideoInfoTag()->GetPath();
+      //CFileItemPtr pItem(new CFileItem());
+      //CFileItemListPtr pItem(new CFileItemList());
 
       std::string basePath = baseDir;
       CVideoDbUrl videoUrl;
@@ -284,55 +319,10 @@ bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileI
       }
 
       pItem->m_bIsFolder = true;
-      pItem->m_strTitle = (*set->second.begin())->GetVideoInfoTag()->m_strTitle;
-      CVideoInfoTag* setInfo = pItem->GetVideoInfoTag();
-      *setInfo = *(*set->second.begin())->GetVideoInfoTag();
-      int ratings = 0;
-      int iWatched = 0;
-      setInfo->m_fRating = 0;
-      setInfo->m_playCount = 0;
-      for (std::set<CFileItemPtr>::const_iterator episode = set->second.begin(); episode != set->second.end(); episode++)
-      {
-        CVideoInfoTag* episodeInfo = (*episode)->GetVideoInfoTag();
-        // handle rating
-        if (episodeInfo->m_fRating > 0.0f)
-        {
-          ratings++;
-          setInfo->m_fRating += episodeInfo->m_fRating;
-        }
-
-        // prefer highest quality source
-        if (setInfo->m_streamDetails.GetVideoHeight() < episodeInfo->m_streamDetails.GetVideoHeight())
-        {
-          CFileItem video(episodeInfo->m_basePath, false);
-          if (video.IsVideo())
-            setInfo->m_basePath = episodeInfo->m_basePath;
-          setInfo->m_streamDetails = episodeInfo->m_streamDetails;
-        }
-
-        // handle lastplayed
-        if (episodeInfo->m_lastPlayed.IsValid() && episodeInfo->m_lastPlayed > setInfo->m_lastPlayed)
-          setInfo->m_lastPlayed = episodeInfo->m_lastPlayed;
-
-        // handle dateadded
-        if (episodeInfo->m_dateAdded.IsValid() && episodeInfo->m_dateAdded > setInfo->m_dateAdded)
-          setInfo->m_dateAdded = episodeInfo->m_dateAdded;
-
-        // handle playcount/watched
-        setInfo->m_playCount += episodeInfo->m_playCount;
-        if (episodeInfo->m_playCount > 0)
-          iWatched++;
-
-      }
-
-      if (ratings > 1)
-        pItem->GetVideoInfoTag()->m_fRating /= ratings;
-
-      pItem->SetProperty("total", (int)set->second.size());
-      pItem->SetProperty("watched", iWatched);
-      pItem->SetProperty("unwatched", (int)set->second.size() - iWatched);
-      pItem->SetOverlayImage(CGUIListItem::ICON_OVERLAY_UNWATCHED, setInfo->m_playCount > 0);
-
+      pItem->GetVideoInfoTag()->m_strTitle = "Loading Duplicates..."; // (*set->second.begin())->GetVideoInfoTag()->m_strTitle;
+      //CVideoInfoTag* setInfo = pItem->GetVideoInfoTag();
+      //*setInfo = *(*set->second.begin())->GetVideoInfoTag();
+      combine_entries(pItem, set);
       groupedItems.Add(pItem);
     }
   }

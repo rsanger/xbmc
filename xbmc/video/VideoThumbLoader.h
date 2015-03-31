@@ -135,4 +135,6 @@ protected:
    \return void
    */
   void DetectAndAddMissingItemData(CFileItem &item);
+private:
+  bool HandleMergedCFileList(CFileItemList *item, bool cached);
 };
