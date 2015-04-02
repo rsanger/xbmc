@@ -11108,7 +11108,17 @@ msgctxt "#20469"
 msgid "Keep current set (%s)"
 msgstr ""
 
-#empty strings from id 20470 to 21329
+#: system/settings/settings.xml
+msgctxt "#20470"
+msgid "Group identical movies from different sources"
+msgstr ""
+
+#: system/settings/settings.xml
+msgctxt "#20471"
+msgid "Group identical TV episodes from different sources"
+msgstr ""
+
+#empty strings from id 20472 to 21329
 #up to 21329 is reserved for the video db !! !
 
 #: system/settings/settings.xml
@@ -11678,7 +11688,42 @@ msgctxt "#21477"
 msgid "Just Specials"
 msgstr ""
 
-#empty strings from id 21478 to 21601
+#. One of the values valid for "Videos -> Library -> Group identical movies from different sources" with label #20470
+#. One of the values valid for "Videos -> Library -> Group identical TV episodes from different sources" with label #20471
+#: system/settings/settings.xml
+msgctxt "#21478"
+msgid "Disable"
+msgstr ""
+
+#. One of the values valid for "Videos -> Library -> Group identical movies from different sources" with label #20470
+#. One of the values valid for "Videos -> Library -> Group identical TV episodes from different sources" with label #20471
+#: system/settings/settings.xml
+msgctxt "#21479"
+msgid "Always Ask"
+msgstr ""
+
+#. One of the values valid for "Videos -> Library -> Group identical movies from different sources" with label #20470
+#. One of the values valid for "Videos -> Library -> Group identical TV episodes from different sources" with label #20471
+#: system/settings/settings.xml
+msgctxt "#21480"
+msgid "Best Video"
+msgstr ""
+
+#. One of the values valid for "Videos -> Library -> Group identical movies from different sources" with label #20470
+#. One of the values valid for "Videos -> Library -> Group identical TV episodes from different sources" with label #20471
+#: system/settings/settings.xml
+msgctxt "#21481"
+msgid "Best Audio"
+msgstr ""
+
+#. One of the values valid for "Videos -> Library -> Group identical movies from different sources" with label #20470
+#. One of the values valid for "Videos -> Library -> Group identical TV episodes from different sources" with label #20471
+#: system/settings/settings.xml
+msgctxt "#21482"
+msgid "Best Subtitles"
+msgstr ""
+
+#empty strings from id 21483 to 21601
 
 #: xbmc/Util.cpp
 msgctxt "#21602"
@@ -16191,7 +16236,19 @@ msgctxt "#36603"
 msgid "Category containing settings for how video output is handled."
 msgstr ""
 
-#empty strings from id 36604 to 36899
+#. Description of setting "Videos -> Library -> Group identical movies from different sources" with label #20470
+#: system/settings/settings.xml
+msgctxt "#36604"
+msgid "Group movies with identical metadata but different files/sources together into a single item when browsing the video library."
+msgstr ""
+
+#. Description of setting "Videos -> Library -> Group identical TV episodes from different sources" with label #20471
+#: system/settings/settings.xml
+msgctxt "#36605"
+msgid "Group TV episodes with identical metadata but different files/sources together into a single item when browsing the video library."
+msgstr ""
+
+#empty strings from id 36606 to 36899
 
 #: xbmc/media/MediaType.cpp
 msgctxt "#36900"

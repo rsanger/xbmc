@@ -39,6 +39,15 @@ enum IncludeAllSeasonsAndSpecials
   SPECIALS = 3
 };
 
+enum GroupDuplicates
+{
+  DISABLE = 0,
+  ALWAYS_ASK = 1,
+  BEST_VIDEO = 2,
+  BEST_AUDIO = 3,
+  BEST_SUBTITLE = 4
+};
+
 class CGUIWindowVideoNav : public CGUIWindowVideoBase
 {
 public:

@@ -460,6 +460,34 @@
           <default>false</default>
           <control type="toggle" />
         </setting>
+        <setting id="videolibrary.groupmovies" type="integer" label="20470" help="36604">
+          <level>0</level>
+          <default>1</default>
+          <constraints>
+            <options>
+              <option label="21478">0</option><!-- Disable -->
+              <option label="21479">1</option><!-- Always Ask -->
+              <option label="21480">2</option><!-- Best Video -->
+              <option label="21481">3</option><!-- Best Audio -->
+              <option label="21482">4</option><!-- Best Subtitles -->
+            </options>
+          </constraints>
+          <control type="spinner" format="string" />
+        </setting>
+        <setting id="videolibrary.groupepisodes" type="integer" label="20471" help="36605">
+          <level>0</level>
+          <default>1</default>
+          <constraints>
+            <options>
+              <option label="21478">0</option><!-- Disable -->
+              <option label="21479">1</option><!-- Always Ask -->
+              <option label="21480">2</option><!-- Best Video -->
+              <option label="21481">3</option><!-- Best Audio -->
+              <option label="21482">4</option><!-- Best Subtitles -->
+            </options>
+          </constraints>
+          <control type="spinner" format="string" />
+        </setting>
       </group>
       <group id="2">
         <setting id="videolibrary.updateonstartup" type="boolean" label="22000" help="36146">

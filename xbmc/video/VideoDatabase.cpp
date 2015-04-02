@@ -64,6 +64,7 @@
 #include "playlists/SmartPlayList.h"
 #include "utils/GroupUtils.h"
 #include "Application.h"
+#include "windows/GUIWindowVideoNav.h"
 
 using namespace std;
 using namespace dbiplus;
@@ -6197,20 +6198,22 @@ bool CVideoDatabase::GetMoviesNav(const std::string& strBaseDir, CFileItemList& 
     return false;
 
   // Check if duplicate movies need to be merged or if a single movie is requested
-  if (!videoUrl.HasOption("imbdid")) {
-    CFileItemList mergedMovies;
-    if (!GroupUtils::Group(GroupByMovie, strBaseDir, items, mergedMovies, GroupAttributeIgnoreSingleItems))
-      return false;
+  if (CSettings::Get().GetInt("videolibrary.groupmovies") != GroupDuplicates::DISABLE) {
+    if (!videoUrl.HasOption("imbdid")) {
+      CFileItemList mergedMovies;
+      if (!GroupUtils::Group(GroupByMovie, strBaseDir, items, mergedMovies, GroupAttributeIgnoreSingleItems))
+        return false;
 
-    items.ClearItems();
-    items.Append(mergedMovies);
-  }
-  else {
-    for (int index = 0; index < items.Size(); index++) {
-      const CFileItemPtr item = items.Get(index);
-      // TODO allow some regex rename matching here
-      item->GetVideoInfoTag()->m_strTitle +=
-        " - (" + item->GetVideoInfoTag()->GetPath() + ")";
+      items.ClearItems();
+      items.Append(mergedMovies);
+    }
+    else {
+      for (int index = 0; index < items.Size(); index++) {
+        const CFileItemPtr item = items.Get(index);
+        // TODO allow some regex rename matching here
+        item->GetVideoInfoTag()->m_strTitle +=
+          " - (" + item->GetVideoInfoTag()->GetPath() + ")";
+      }
     }
   }
   return true;
@@ -6441,19 +6444,22 @@ bool CVideoDatabase::GetEpisodesNav(const std::string& strBaseDir, CFileItemList
   bool ret = GetEpisodesByWhere(videoUrl.ToString(), filter, items, false, sortDescription);
 
   // Check if duplicate episodes need to be merged or if a single episode is requested
-  if (!videoUrl.HasOption("tvepisodenumber")) {
-    CFileItemList mergedEpisodes;
-    if (!GroupUtils::Group(GroupByEpisode, videoUrl.ToString(), items, mergedEpisodes, GroupAttributeIgnoreSingleItems))
-      return false;
+  if (CSettings::Get().GetInt("videolibrary.groupepisodes") != GroupDuplicates::DISABLE) {
+    if (!videoUrl.HasOption("tvepisodenumber")) {
+      CFileItemList mergedEpisodes;
+      if (!GroupUtils::Group(GroupByEpisode, videoUrl.ToString(), items, mergedEpisodes, GroupAttributeIgnoreSingleItems))
+        return false;
 
-    items.ClearItems();
-    items.Append(mergedEpisodes);
-  } else {
-    for (int index = 0; index < items.Size(); index++) {
-      const CFileItemPtr item = items.Get(index);
-      // TODO allow some regex rename matching here
-      item->GetVideoInfoTag()->m_strTitle +=
-        " - (" + item->GetVideoInfoTag()->GetPath() + ")";
+      items.ClearItems();
+      items.Append(mergedEpisodes);
+    }
+    else {
+      for (int index = 0; index < items.Size(); index++) {
+        const CFileItemPtr item = items.Get(index);
+        // TODO allow some regex rename matching here
+        item->GetVideoInfoTag()->m_strTitle +=
+          " - (" + item->GetVideoInfoTag()->GetPath() + ")";
+      }
     }
   }
 
