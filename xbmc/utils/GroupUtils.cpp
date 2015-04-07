@@ -73,10 +73,27 @@ static void combine_entries(CFileItemListPtr &grouped, MovieMap::const_iterator 
   if (ratings > 1)
     groupInfo->m_fRating /= ratings;
 
+  /* TODO what makes sense here? */
   grouped->SetProperty("total", (int)set->second.size());
   grouped->SetProperty("watched", groupInfo->m_playCount);
   grouped->SetProperty("unwatched", (int)set->second.size() /*- iWatched*/);
   grouped->SetOverlayImage(CGUIListItem::ICON_OVERLAY_UNWATCHED, groupInfo->m_playCount > 0);
+  grouped->m_bIsFolder = true;
+
+  /* XXX add this in properly TODO */
+  if (grouped->GetProperty("contextmenulabel(0)").isNull()) {
+    grouped->SetProperty("contextmenulabel(0)", "List All Duplicates");
+    grouped->SetProperty("contextmenuaction(0)", "ActivateWindow(Videos, " + grouped->GetPath() + ")");
+  }
+
+#if 0
+  grouped->SetLabel("Loading Duplicates...");
+  grouped->GetVideoInfoTag()->m_strTitle = "Loading Duplicates...";
+  if (set->second.begin()->get()->GetVideoInfoTag()->m_strSortTitle.empty())
+    grouped->GetVideoInfoTag()->m_strSortTitle = set->second.begin()->get()->GetVideoInfoTag()->m_strTitle;
+  else
+    grouped->GetVideoInfoTag()->m_strSortTitle = set->second.begin()->get()->GetVideoInfoTag()->m_strSortTitle;
+#endif
 }
 
 bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileItemList &items, CFileItemList &groupedItems, GroupAttribute groupAttributes /* = GroupAttributeNone */)
@@ -224,20 +241,14 @@ bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileI
       }
 
       CFileItemListPtr pItem(new CFileItemList());
-      //pItem->Add(*itItem->second.begin());
+
+      /* Set the video information this ensure sorting and naming works correctly
+      * it will overwrite path so we do this first */
       pItem->SetFromVideoInfoTag(*set->second.begin()->get()->GetVideoInfoTag());
-      // Turns out path gets booped by SetFromVideoInfoTag
-      pItem->SetPath(set->second.begin()->get()->GetPath());
-      // This aint do nothing GRR!! Sort does not try this field :(
-      pItem->SetSortLabel(set->second.begin()->get()->GetSortLabel());
-      pItem->SetLabel("Loading Duplicates...");
-      if (set->second.begin()->get()->GetVideoInfoTag()->m_strSortTitle.empty())
-        pItem->GetVideoInfoTag()->m_strSortTitle = set->second.begin()->get()->GetVideoInfoTag()->m_strTitle;
-      else
-        pItem->GetVideoInfoTag()->m_strSortTitle = set->second.begin()->get()->GetVideoInfoTag()->m_strSortTitle;
-      set->second.begin()->get()->GetVideoInfoTag()->m_basePath = set->second.begin()->get()->GetVideoInfoTag()->GetPath();
-      //CFileItemListPtr pItem(new CFileItemList());
-      //CFileItemPtr pItem(new CFileItem());
+
+      /* Zero out the paths, we will fill these in the background VideoThumbLoader */
+      pItem->GetVideoInfoTag()->m_basePath = "";
+      pItem->GetVideoInfoTag()->m_strFileNameAndPath = "";
 
       std::string basePath = "videodb://movies/titles/";
       CVideoDbUrl videoUrl;
@@ -249,17 +260,9 @@ bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileI
         videoUrl.AddOption("imbdid", set->first);
         pItem->SetPath(videoUrl.ToString());
       }
-      pItem->m_bIsFolder = true;
 
-      pItem->GetVideoInfoTag()->m_strTitle = (*set->second.begin())->GetVideoInfoTag()->m_strTitle;
-      //CVideoInfoTag* setInfo = pItem->GetVideoInfoTag();
-      //*setInfo = *(*set->second.begin())->GetVideoInfoTag();
-
+      /* Add all item to the list and merge together play counts etc. */
       combine_entries(pItem, set);
-
-      if (typeid(*pItem) == typeid(CFileItemList))
-        int x = 0;
-
       groupedItems.Add(pItem);
     }
   }
@@ -269,14 +272,6 @@ bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileI
     CVideoDbUrl itemsUrl;
     if (!itemsUrl.FromString(baseDir))
       return false;
-    bool season_naming = true;
-
-    CUrlOptions::UrlOptions::const_iterator option = itemsUrl.GetOptions().find("season");
-    if (option != itemsUrl.GetOptions().end())
-    {
-      if (option->second.asInteger() != -1)
-        season_naming = false;
-    }
 
     for (EpisodeMap::const_iterator set = episodeMap.begin(); set != episodeMap.end(); set++)
     {
@@ -289,23 +284,14 @@ bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileI
       }
 
       CFileItemListPtr pItem(new CFileItemList());
-      //pItem->Add(*itItem->second.begin());
+
+      /* Set the video information this ensure sorting and naming works correctly
+       * it will overwrite path so we do this first */
       pItem->SetFromVideoInfoTag(*set->second.begin()->get()->GetVideoInfoTag());
-      // Turns out path gets booped by SetFromVideoInfoTag
-      pItem->SetPath(set->second.begin()->get()->GetPath());
-      // This aint do nothing GRR!! Sort does not try this field :(
-      pItem->SetSortLabel(set->second.begin()->get()->GetSortLabel());
-      pItem->SetLabel("Loading Duplicates...");
+
+      /* Zero out the paths, we will fill these in the background VideoThumbLoader */
       pItem->GetVideoInfoTag()->m_basePath = "";
       pItem->GetVideoInfoTag()->m_strFileNameAndPath = "";
-      pItem->GetVideoInfoTag()->m_strTitle = "Loading Duplicates...";
-      if (set->second.begin()->get()->GetVideoInfoTag()->m_strSortTitle.empty())
-        pItem->GetVideoInfoTag()->m_strSortTitle = set->second.begin()->get()->GetVideoInfoTag()->m_strTitle;
-      else
-        pItem->GetVideoInfoTag()->m_strSortTitle = set->second.begin()->get()->GetVideoInfoTag()->m_strSortTitle;
-      set->second.begin()->get()->GetVideoInfoTag()->m_basePath = set->second.begin()->get()->GetVideoInfoTag()->GetPath();
-      //CFileItemPtr pItem(new CFileItem());
-      //CFileItemListPtr pItem(new CFileItemList());
 
       std::string basePath = baseDir;
       CVideoDbUrl videoUrl;
@@ -318,10 +304,7 @@ bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileI
         pItem->SetPath(videoUrl.ToString());
       }
 
-      pItem->m_bIsFolder = true;
-      pItem->GetVideoInfoTag()->m_strTitle = "Loading Duplicates..."; // (*set->second.begin())->GetVideoInfoTag()->m_strTitle;
-      //CVideoInfoTag* setInfo = pItem->GetVideoInfoTag();
-      //*setInfo = *(*set->second.begin())->GetVideoInfoTag();
+      /* Add all item to the list and merge together play counts etc. */
       combine_entries(pItem, set);
       groupedItems.Add(pItem);
     }

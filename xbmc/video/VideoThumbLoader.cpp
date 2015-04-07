@@ -344,17 +344,11 @@ bool CVideoThumbLoader::HandleMergedCFileList(CFileItemList *dir, bool cached) {
     }
   }
 
-  /* XXX add this in properly TODO, move to group utils??? */
-  if (dir->GetProperty("contextmenulabel(0)").isNull()) {
-    dir->SetProperty("contextmenulabel(0)", "List All Alternatives");
-    dir->SetProperty("contextmenuaction(0)", "ActivateWindow(Videos, " + dir->GetPath() + ")");
-  }
-
   /* If everything that is going to load has, update this item */
   if (itemsLoaded == dir->Size() || !cached) {
     if (pickBest) {
       /* Become a file with, meaning play from etc can be used */
-      // Cache label this is already formated and we don't want to change that
+      /* Cache the label this is already formated and we don't want to change that */
       std::string tmp = dir->GetLabel();
       if (thebest.get()) {
         dir->SetFromVideoInfoTag(*thebest->GetVideoInfoTag());
