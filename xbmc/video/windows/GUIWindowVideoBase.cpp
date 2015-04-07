@@ -944,6 +944,11 @@ bool CGUIWindowVideoBase::OnInfo(int iItem)
 
   CFileItemPtr item = m_vecItems->Get(iItem);
 
+  /* If this is merged duplicates, get the info from the first */
+  if (typeid(*item) == typeid(CFileItemList) && item->m_bIsFolder
+    && dynamic_cast<CFileItemList *>(item.get())->Size() > 0)
+    item = dynamic_cast<CFileItemList *>(item.get())->Get(0);
+
   if (item->IsPath("add") || item->IsParentFolder() ||
      (item->IsPlayList() && !URIUtils::HasExtension(item->GetPath(), ".strm")))
     return false;
