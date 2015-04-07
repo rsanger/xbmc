@@ -1899,11 +1899,28 @@ bool CGUIMediaWindow::GetAdvanceFilteredItems(CFileItemList &items)
     // check if the item is part of the resultItems list
     // by comparing their paths (but ignoring any special
     // options because they differ from filter to filter)
-    std::string path = RemoveParameterFromPath(item->GetPath(), "filter");
-    StringUtils::ToLower(path);
+    std::string path;
+    map<std::string, CFileItemPtr>::iterator itItem;
+    if (typeid(*item) == typeid(CFileItemList)) {
+      /* Filtered items have not yet been grouped, so compare to all base items */
+      CFileItemList *filelist = dynamic_cast<CFileItemList *>(item.get());
+      for (int i = 0; i < filelist->Size(); i++) {
+        CFileItemPtr child = filelist->Get(i);
 
-    map<std::string, CFileItemPtr>::iterator itItem = lookup.find(path);
-    if (itItem != lookup.end())
+        path = RemoveParameterFromPath(child->GetPath(), "filter");
+        StringUtils::ToLower(path);
+        itItem = lookup.find(path);
+        /* We've found one match that's all we need to keep the item */
+        if (itItem != lookup.end())
+          break;
+      }
+    } else {
+      path = RemoveParameterFromPath(item->GetPath(), "filter");
+      StringUtils::ToLower(path);
+      itItem = lookup.find(path);
+    }
+
+    if (itItem != lookup.end() && !path.empty())
     {
       // add the item to the list of filtered items
       filteredItems.Add(item);
