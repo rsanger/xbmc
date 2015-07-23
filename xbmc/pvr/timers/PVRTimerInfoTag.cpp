@@ -29,7 +29,6 @@
 #include "PVRTimers.h"
 #include "pvr/PVRManager.h"
 #include "pvr/channels/PVRChannelGroupsContainer.h"
-#include "pvr/channels/PVRChannelGroupInternal.h"
 #include "epg/EpgContainer.h"
 #include "pvr/addons/PVRClients.h"
 
@@ -289,8 +288,8 @@ std::string CPVRTimerInfoTag::GetStatus() const
     strReturn = g_localizeStrings.Get(19162);
   else if (m_state == PVR_TIMER_STATE_CONFLICT_OK)
     strReturn = g_localizeStrings.Get(19275);
-  else if (m_state == PVR_TIMER_STATE_CONFLICT_NOK)	
-    strReturn = g_localizeStrings.Get(19276);	
+  else if (m_state == PVR_TIMER_STATE_CONFLICT_NOK)
+    strReturn = g_localizeStrings.Get(19276);
   else if (m_state == PVR_TIMER_STATE_ERROR)
     strReturn = g_localizeStrings.Get(257);
 
@@ -315,7 +314,7 @@ bool CPVRTimerInfoTag::DeleteFromClient(bool bForce /* = false */) const
   if (error == PVR_ERROR_RECORDING_RUNNING)
   {
     // recording running. ask the user if it should be deleted anyway
-    if (!CGUIDialogYesNo::ShowAndGetInput(122,0,19122,0))
+    if (!CGUIDialogYesNo::ShowAndGetInput(122, 19122))
       return false;
 
     error = g_PVRClients->DeleteTimer(*this, true);
@@ -399,13 +398,13 @@ bool CPVRTimerInfoTag::UpdateOnClient()
 void CPVRTimerInfoTag::DisplayError(PVR_ERROR err) const
 {
   if (err == PVR_ERROR_SERVER_ERROR)
-    CGUIDialogOK::ShowAndGetInput(19033,19111,19110,0); /* print info dialog "Server error!" */
+    CGUIDialogOK::ShowAndGetInput(19033, 19111); /* print info dialog "Server error!" */
   else if (err == PVR_ERROR_REJECTED)
-    CGUIDialogOK::ShowAndGetInput(19033,19109,19110,0); /* print info dialog "Couldn't delete timer!" */
+    CGUIDialogOK::ShowAndGetInput(19033, 19109); /* print info dialog "Couldn't save timer!" */
   else if (err == PVR_ERROR_ALREADY_PRESENT)
-    CGUIDialogOK::ShowAndGetInput(19033,19109,0,19067); /* print info dialog */
+    CGUIDialogOK::ShowAndGetInput(19033, 19067); /* print info dialog */
   else
-    CGUIDialogOK::ShowAndGetInput(19033,19147,19110,0); /* print info dialog "Unknown error!" */
+    CGUIDialogOK::ShowAndGetInput(19033, 19110); /* print info dialog "Unknown error!" */
 }
 
 void CPVRTimerInfoTag::SetEpgInfoTag(CEpgInfoTagPtr &tag)
@@ -573,8 +572,8 @@ void CPVRTimerInfoTag::GetNotificationText(std::string &strText) const
   case PVR_TIMER_STATE_COMPLETED:
     strText = StringUtils::Format("%s: '%s'", g_localizeStrings.Get(19227).c_str(), m_strTitle.c_str());
     break;
-  case PVR_TIMER_STATE_CONFLICT_OK:	
-  case PVR_TIMER_STATE_CONFLICT_NOK:	
+  case PVR_TIMER_STATE_CONFLICT_OK:
+  case PVR_TIMER_STATE_CONFLICT_NOK:
     strText = StringUtils::Format("%s: '%s'", g_localizeStrings.Get(19277).c_str(), m_strTitle.c_str());
     break;
   case PVR_TIMER_STATE_ERROR:
@@ -582,6 +581,21 @@ void CPVRTimerInfoTag::GetNotificationText(std::string &strText) const
     break;
   default:
     break;
+  }
+}
+
+std::string CPVRTimerInfoTag::GetDeletedNotificationText() const
+{
+  CSingleLock lock(m_critSection);
+
+  // The state in this case is the state the timer had when it was last seen
+  switch (m_state)
+  {
+  case PVR_TIMER_STATE_RECORDING:
+    return StringUtils::Format("%s: '%s'", g_localizeStrings.Get(19227).c_str(), m_strTitle.c_str()); // Recording completed
+  case PVR_TIMER_STATE_SCHEDULED:
+  default:
+    return StringUtils::Format("%s: '%s'", g_localizeStrings.Get(19228).c_str(), m_strTitle.c_str()); // Timer deleted
   }
 }
 
@@ -600,6 +614,11 @@ void CPVRTimerInfoTag::QueueNotification(void) const
 CEpgInfoTagPtr CPVRTimerInfoTag::GetEpgInfoTag(void) const
 {
   return m_epgTag;
+}
+
+bool CPVRTimerInfoTag::HasEpgInfoTag(void) const
+{
+  return m_epgTag != NULL;
 }
 
 bool CPVRTimerInfoTag::SupportsFolders() const

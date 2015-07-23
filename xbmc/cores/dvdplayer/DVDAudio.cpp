@@ -22,7 +22,6 @@
 #include "utils/log.h"
 #include "DVDAudio.h"
 #include "DVDClock.h"
-#include "DVDCodecs/DVDCodecs.h"
 #include "DVDCodecs/Audio/DVDAudioCodec.h"
 #include "cores/AudioEngine/AEFactory.h"
 #include "cores/AudioEngine/Interfaces/AEStream.h"
@@ -276,5 +275,17 @@ double CDVDAudio::GetPlayingPts()
   if (m_playingPts == DVD_NOPTS_VALUE)
     return 0.0;
 
-  return m_playingPts + CDVDClock::GetAbsoluteClock() - m_timeOfPts;
+  double now = CDVDClock::GetAbsoluteClock();
+  double diff = now - m_timeOfPts;
+  double cache = GetCacheTime();
+  double played = 0.0;
+
+  if (diff < cache)
+    played = diff;
+  else
+    played = cache;
+
+  m_timeOfPts = now;
+  m_playingPts += played;
+  return m_playingPts;
 }

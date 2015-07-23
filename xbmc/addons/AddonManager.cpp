@@ -17,16 +17,18 @@
  *  <http://www.gnu.org/licenses/>.
  *
  */
+#include <memory>
 #include "AddonManager.h"
 #include "Addon.h"
 #include "AudioEncoder.h"
 #include "AudioDecoder.h"
+#include "ContextMenuManager.h"
 #include "DllLibCPluff.h"
 #include "LanguageResource.h"
+#include "UISoundsResource.h"
 #include "utils/StringUtils.h"
 #include "utils/JobManager.h"
 #include "threads/SingleLock.h"
-#include "FileItem.h"
 #include "LangInfo.h"
 #include "settings/AdvancedSettings.h"
 #include "settings/Settings.h"
@@ -39,7 +41,6 @@
 #include "ScreenSaver.h"
 #endif
 #ifdef HAS_PVRCLIENTS
-#include "DllPVRClient.h"
 #include "pvr/addons/PVRClient.h"
 #endif
 //#ifdef HAS_SCRAPERS
@@ -175,6 +176,8 @@ AddonPtr CAddonMgr::Factory(const cp_extension_t *props)
       return AddonPtr(new CSkinInfo(props));
     case ADDON_RESOURCE_LANGUAGE:
       return AddonPtr(new CLanguageResource(props));
+    case ADDON_RESOURCE_UISOUNDS:
+      return AddonPtr(new CUISoundsResource(props));
     case ADDON_VIZ_LIBRARY:
       return AddonPtr(new CAddonLibrary(props));
     case ADDON_REPOSITORY:
@@ -314,6 +317,27 @@ bool CAddonMgr::Init()
   }
 
   FindAddons();
+
+  // disable some system addons by default because they are optional
+  VECADDONS addons;
+  GetAddons(ADDON_PVRDLL, addons);
+  GetAddons(ADDON_AUDIODECODER, addons);
+  std::string systemAddonsPath = CSpecialProtocol::TranslatePath("special://xbmc/addons");
+  for (auto &addon : addons)
+  {
+    if (StringUtils::StartsWith(addon->Path(), systemAddonsPath))
+    {
+      if (!m_database.IsSystemAddonRegistered(addon->ID()))
+      {
+        m_database.DisableAddon(addon->ID());
+        m_database.AddSystemAddon(addon->ID());
+      }
+    }
+  }
+
+  std::vector<std::string> disabled;
+  m_database.GetDisabled(disabled);
+  m_disabled.insert(disabled.begin(), disabled.end());
 
   VECADDONS repos;
   if (GetAddons(ADDON_REPOSITORY, repos))
@@ -620,39 +644,57 @@ void CAddonMgr::FindAddons()
   NotifyObservers(ObservableMessageAddons);
 }
 
-void CAddonMgr::RemoveAddon(const std::string& ID)
+void CAddonMgr::UnregisterAddon(const std::string& ID)
 {
+  CSingleLock lock(m_critSection);
+  m_disabled.erase(ID);
   if (m_cpluff && m_cp_context)
   {
-    m_cpluff->uninstall_plugin(m_cp_context,ID.c_str());
+    m_cpluff->uninstall_plugin(m_cp_context, ID.c_str());
     SetChanged();
+    lock.Leave();
     NotifyObservers(ObservableMessageAddons);
   }
 }
 
-bool CAddonMgr::DisableAddon(const std::string& ID, bool disable)
+bool CAddonMgr::DisableAddon(const std::string& id)
 {
   CSingleLock lock(m_critSection);
-  if (m_database.DisableAddon(ID, disable))
-  {
-    m_disabled[ID] = disable;
-    return true;
-  }
+  if (m_disabled.find(id) != m_disabled.end())
+    return true; //already disabled
 
-  return false;
+  if (!CanAddonBeDisabled(id))
+    return false;
+  if (!m_database.DisableAddon(id))
+    return false;
+  if (!m_disabled.insert(id).second)
+    return false;
+
+  //success
+  ADDON::OnDisabled(id);
+  return true;
+}
+
+bool CAddonMgr::EnableAddon(const std::string& id)
+{
+  CSingleLock lock(m_critSection);
+  if (m_disabled.find(id) == m_disabled.end())
+    return true; //already enabled
+
+  if (!m_database.DisableAddon(id, false))
+    return false;
+  if (m_disabled.erase(id) == 0)
+    return false;
+
+  //success
+  ADDON::OnEnabled(id);
+  return true;
 }
 
 bool CAddonMgr::IsAddonDisabled(const std::string& ID)
 {
   CSingleLock lock(m_critSection);
-  std::map<std::string, bool>::const_iterator it = m_disabled.find(ID);
-  if (it != m_disabled.end())
-    return it->second;
-
-  bool ret = m_database.IsAddonDisabled(ID);
-  m_disabled.insert(pair<std::string, bool>(ID, ret));
-
-  return ret;
+  return m_disabled.find(ID) != m_disabled.end();
 }
 
 bool CAddonMgr::CanAddonBeDisabled(const std::string& ID)
@@ -663,7 +705,7 @@ bool CAddonMgr::CanAddonBeDisabled(const std::string& ID)
   CSingleLock lock(m_critSection);
   AddonPtr localAddon;
   // can't disable an addon that isn't installed
-  if (!IsAddonInstalled(ID, localAddon))
+  if (!GetAddon(ID, localAddon, ADDON_UNKNOWN, false))
     return false;
 
   // can't disable an addon that is in use
@@ -672,6 +714,14 @@ bool CAddonMgr::CanAddonBeDisabled(const std::string& ID)
 
   // installed PVR addons can always be disabled
   if (localAddon->Type() == ADDON_PVRDLL)
+    return true;
+
+  // installed audio decoder addons can always be disabled
+  if (localAddon->Type() == ADDON_AUDIODECODER)
+    return true;
+
+  // installed audio encoder addons can always be disabled
+  if (localAddon->Type() == ADDON_AUDIOENCODER)
     return true;
 
   std::string systemAddonsPath = CSpecialProtocol::TranslatePath("special://xbmc/addons");
@@ -685,12 +735,7 @@ bool CAddonMgr::CanAddonBeDisabled(const std::string& ID)
 bool CAddonMgr::IsAddonInstalled(const std::string& ID)
 {
   AddonPtr tmp;
-  return IsAddonInstalled(ID, tmp);
-}
-
-bool CAddonMgr::IsAddonInstalled(const std::string& ID, AddonPtr& addon)
-{
-  return GetAddon(ID, addon, ADDON_UNKNOWN, false);
+  return GetAddon(ID, tmp, ADDON_UNKNOWN, false);
 }
 
 bool CAddonMgr::CanAddonBeInstalled(const std::string& ID)
@@ -740,11 +785,10 @@ std::string CAddonMgr::GetTranslatedString(const cp_cfg_element_t *root, const c
     {
       // see if we have a "lang" attribute
       const char *lang = m_cpluff->lookup_cfg_value((cp_cfg_element_t*)&child, "@lang");
-      if (lang != NULL &&
-         (g_langInfo.GetLocale().Matches(lang) || strcmp(lang, "en") == 0))
+      if (lang != NULL && g_langInfo.GetLocale().Matches(lang))
         translatedValues.insert(std::make_pair(lang, child.value != NULL ? child.value : ""));
-      else if (lang == NULL)
-        translatedValues.insert(std::make_pair("en", child.value != NULL ? child.value : ""));
+      else if (lang == NULL || strcmp(lang, "en") == 0 || strcmp(lang, "en_GB") == 0)
+        translatedValues.insert(std::make_pair("en_GB", child.value != NULL ? child.value : ""));
     }
   }
 
@@ -756,7 +800,7 @@ std::string CAddonMgr::GetTranslatedString(const cp_cfg_element_t *root, const c
   // find the language from the list that matches the current locale best
   std::string matchingLanguage = g_langInfo.GetLocale().FindBestMatch(languages);
   if (matchingLanguage.empty())
-    matchingLanguage = "en";
+    matchingLanguage = "en_GB";
 
   auto const& translatedValue = translatedValues.find(matchingLanguage);
   if (translatedValue != translatedValues.end())
@@ -807,6 +851,8 @@ AddonPtr CAddonMgr::AddonFromProps(AddonProps& addonProps)
       return AddonPtr(new CAudioDecoder(addonProps));
     case ADDON_RESOURCE_LANGUAGE:
       return AddonPtr(new CLanguageResource(addonProps));
+    case ADDON_RESOURCE_UISOUNDS:
+      return AddonPtr(new CUISoundsResource(addonProps));
     case ADDON_REPOSITORY:
       return AddonPtr(new CRepository(addonProps));
     case ADDON_CONTEXT_ITEM:

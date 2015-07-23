@@ -24,7 +24,6 @@
 #include "addons/Skin.h"
 #ifdef HAS_VIDEO_PLAYBACK
 #include "cores/VideoRenderers/RenderManager.h"
-#include "cores/VideoRenderers/RenderFlags.h"
 #endif
 #include "dialogs/GUIDialogYesNo.h"
 #include "guilib/GUIWindowManager.h"
@@ -156,7 +155,7 @@ void CGUIDialogVideoSettings::OnSettingAction(const CSetting *setting)
     if (CProfilesManager::Get().GetMasterProfile().getLockMode() != LOCK_MODE_EVERYONE  &&
         g_passwordManager.CheckSettingLevelLock(CSettings::Get().GetSetting("videoscreen.guicalibration")->GetLevel()))
       return;
-    g_windowManager.ActivateWindow(WINDOW_SCREEN_CALIBRATION);
+    g_windowManager.ForceActivateWindow(WINDOW_SCREEN_CALIBRATION);
   }
   // TODO
   else if (settingId == SETTING_VIDEO_MAKE_DEFAULT)
@@ -170,7 +169,7 @@ void CGUIDialogVideoSettings::Save()
     return;
 
   // prompt user if they are sure
-  if (CGUIDialogYesNo::ShowAndGetInput(12376, 750, 0, 12377))
+  if (CGUIDialogYesNo::ShowAndGetInput(12376, 12377))
   { // reset the settings
     CVideoDatabase db;
     if (!db.Open())

@@ -26,7 +26,6 @@
 #include "utils/log.h"
 #include "utils/URIUtils.h"
 #include "utils/StringUtils.h"
-#include "URL.h"
 
 #include "PVRTimers.h"
 #include "pvr/PVRManager.h"
@@ -174,7 +173,7 @@ bool CPVRTimers::UpdateEntries(const CPVRTimers &timers)
 
   /* to collect timer with changed starting time */
   VecTimerInfoTag timersToMove;
-  
+
   /* check for deleted timers */
   for (MapTags::iterator it = m_tags.begin(); it != m_tags.end();)
   {
@@ -188,15 +187,7 @@ bool CPVRTimers::UpdateEntries(const CPVRTimers &timers)
             __FUNCTION__, timer->m_iClientIndex, timer->m_iClientId);
 
         if (g_PVRManager.IsStarted())
-        {
-          std::string strMessage;
-          strMessage = StringUtils::Format("%s: '%s'",
-                                           (timer->EndAsUTC() <= CDateTime::GetCurrentDateTime().GetAsUTCDateTime()) ?
-                                           g_localizeStrings.Get(19227).c_str() :
-                                           g_localizeStrings.Get(19228).c_str(),
-                                           timer->m_strTitle.c_str());
-          timerNotifications.push_back(strMessage);
-        }
+          timerNotifications.push_back(timer->GetDeletedNotificationText());
 
         /** clear the EPG tag explicitly here, because it no longer happens automatically with shared pointers */
         timer->ClearEpgTag();
@@ -215,7 +206,7 @@ bool CPVRTimers::UpdateEntries(const CPVRTimers &timers)
 
         /* remember timer */
         timersToMove.push_back(timer);
-        
+
         /* remove timer for now, reinsert later */
         it2 = it->second->erase(it2);
 
@@ -525,13 +516,13 @@ bool CPVRTimers::AddTimer(const CPVRTimerInfoTagPtr &item)
   if (!item->m_channel)
   {
     CLog::Log(LOGERROR, "PVRTimers - %s - no channel given", __FUNCTION__);
-    CGUIDialogOK::ShowAndGetInput(19033,0,19109,0); // Couldn't save timer
+    CGUIDialogOK::ShowAndGetInput(19033, 19109); // Couldn't save timer
     return false;
   }
 
   if (!g_PVRClients->SupportsTimers(item->m_iClientId))
   {
-    CGUIDialogOK::ShowAndGetInput(19033,0,19215,0);
+    CGUIDialogOK::ShowAndGetInput(19033, 19215);
     return false;
   }
 
@@ -638,10 +629,12 @@ CFileItemPtr CPVRTimers::GetTimerForEpgTag(const CFileItem *item) const
       for (VecTimerInfoTag::const_iterator timerIt = it->second->begin(); timerIt != it->second->end(); ++timerIt)
       {
         CPVRTimerInfoTagPtr timer = *timerIt;
-        if (timer->m_iClientChannelUid == channel->UniqueID() &&
+
+        if (timer->GetEpgInfoTag() == epgTag || 
+            (timer->m_iClientChannelUid == channel->UniqueID() &&
             timer->m_bIsRadio == channel->IsRadio() &&
             timer->StartAsUTC() <= epgTag->StartAsUTC() &&
-            timer->EndAsUTC() >= epgTag->EndAsUTC())
+            timer->EndAsUTC() >= epgTag->EndAsUTC()))
         {
           CFileItemPtr fileItem(new CFileItem(timer));
           return fileItem;

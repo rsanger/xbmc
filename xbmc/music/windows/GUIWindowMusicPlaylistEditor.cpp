@@ -26,11 +26,7 @@
 #include "Autorun.h"
 #include "dialogs/GUIDialogFileBrowser.h"
 #include "filesystem/PlaylistFileDirectory.h"
-#include "filesystem/File.h"
-#include "filesystem/SpecialProtocol.h"
-#include "filesystem/Directory.h"
 #include "playlists/PlayListM3U.h"
-#include "guilib/GUIWindowManager.h"
 #include "guilib/GUIKeyboardFactory.h"
 #include "FileItem.h"
 #include "settings/Settings.h"
@@ -149,12 +145,21 @@ bool CGUIWindowMusicPlaylistEditor::GetDirectory(const std::string &strDirectory
     files->SetLabelPreformated(true);
     files->m_bIsShareOrDrive = true;
     items.Add(files);
-    CFileItemPtr db(new CFileItem("musicdb://", true));
-    db->SetLabel(g_localizeStrings.Get(14022));
-    db->SetLabelPreformated(true);
-    db->m_bIsShareOrDrive = true;
+
+    CFileItemPtr mdb(new CFileItem("musicdb://", true));
+    mdb->SetLabel(g_localizeStrings.Get(14022));
+    mdb->SetLabelPreformated(true);
+    mdb->m_bIsShareOrDrive = true;
     items.SetPath("");
-    items.Add(db);
+    items.Add(mdb);
+
+    CFileItemPtr vdb(new CFileItem("videodb://musicvideos/", true));
+    vdb->SetLabel(g_localizeStrings.Get(20389));
+    vdb->SetLabelPreformated(true);
+    vdb->m_bIsShareOrDrive = true;
+    items.SetPath("");
+    items.Add(vdb);
+
     return true;
   }
 

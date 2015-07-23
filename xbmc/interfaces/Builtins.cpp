@@ -22,6 +22,7 @@
 #include "system.h"
 #include "utils/AlarmClock.h"
 #include "utils/Screenshot.h"
+#include "utils/SeekHandler.h"
 #include "Application.h"
 #include "ApplicationMessenger.h"
 #include "Autorun.h"
@@ -34,6 +35,7 @@
 #include "guilib/GUIKeyboardFactory.h"
 #include "input/Key.h"
 #include "guilib/StereoscopicsManager.h"
+#include "guilib/GUIAudioManager.h"
 #include "dialogs/GUIDialogKaiToast.h"
 #include "dialogs/GUIDialogNumeric.h"
 #include "dialogs/GUIDialogProgress.h"
@@ -101,6 +103,7 @@
 #include "settings/AdvancedSettings.h"
 #include "settings/DisplaySettings.h"
 #include "powermanagement/PowerManager.h"
+#include "filesystem/Directory.h"
 
 using namespace std;
 using namespace XFILE;
@@ -149,6 +152,7 @@ const BUILT_IN commands[] = {
   { "NotifyAll",                  true,   "Notify all connected clients" },
   { "Extract",                    true,   "Extracts the specified archive" },
   { "PlayMedia",                  true,   "Play the specified media file (or playlist)" },
+  { "Seek",                       true,   "Performs a seek in seconds on the current playing media file" },
   { "ShowPicture",                true,   "Display a picture by file path" },
   { "SlideShow",                  true,   "Run a slideshow from the specified directory" },
   { "RecursiveSlideShow",         true,   "Run a slideshow from the specified directory, including all subdirs" },
@@ -292,6 +296,14 @@ void CBuiltins::GetHelp(std::string &help)
     help += commands[i].description;
     help += "\n";
   }
+}
+
+bool CBuiltins::ActivateWindow(int iWindowID, const std::vector<std::string>& params /* = {} */, bool swappingWindows /* = false */)
+{
+  // disable the screensaver
+  g_application.WakeUpScreenSaverAndDPMS();
+  g_windowManager.ActivateWindow(iWindowID, params, swappingWindows);
+  return true;
 }
 
 int CBuiltins::Execute(const std::string& execString)
@@ -442,9 +454,7 @@ int CBuiltins::Execute(const std::string& execString)
       // activate window only if window and path differ from the current active window
       if (iWindow != g_windowManager.GetActiveWindow() || !bIsSameStartFolder)
       {
-        // disable the screensaver
-        g_application.WakeUpScreenSaverAndDPMS();
-        g_windowManager.ActivateWindow(iWindow, params, execute != "activatewindow");
+        return ActivateWindow(iWindow, params, execute != "activatewindow");
       }
     }
     else
@@ -470,10 +480,8 @@ int CBuiltins::Execute(const std::string& execString)
     {
       if (iWindow != g_windowManager.GetActiveWindow())
       {
-        // disable the screensaver
-        g_application.WakeUpScreenSaverAndDPMS();
-        vector<string> dummy;
-        g_windowManager.ActivateWindow(iWindow, dummy, execute != "activatewindowandfocus");
+        if (!ActivateWindow(iWindow, {}, execute != "activatewindowandfocus"))
+          return false;
 
         unsigned int iPtr = 1;
         while (params.size() > iPtr + 1)
@@ -799,6 +807,16 @@ int CBuiltins::Execute(const std::string& execString)
         return false;
       }
     }
+  }
+  else if (execute == "seek")
+  {
+    if (!params.size())
+    {
+      CLog::Log(LOGERROR, "Seek called with empty parameter");
+      return -3;
+    }
+    if (g_application.m_pPlayer->IsPlaying())
+      CSeekHandler::Get().SeekSeconds(atoi(params[0].c_str()));
   }
   else if (execute == "showpicture")
   {
@@ -1485,7 +1503,10 @@ int CBuiltins::Execute(const std::string& execString)
     g_application.getNetwork().NetworkMessage(CNetwork::SERVICES_DOWN,1);
     CProfilesManager::Get().LoadMasterProfileForLogin();
     g_passwordManager.bMasterUser = false;
-    g_windowManager.ActivateWindow(WINDOW_LOGIN_SCREEN);
+
+    if (!ActivateWindow(WINDOW_LOGIN_SCREEN))
+      return false;
+
     if (!CNetworkServices::Get().StartEventServer()) // event server could be needed in some situations
       CGUIDialogKaiToast::QueueNotification(CGUIDialogKaiToast::Warning, g_localizeStrings.Get(33102), g_localizeStrings.Get(33100));
   }
@@ -1560,7 +1581,7 @@ int CBuiltins::Execute(const std::string& execString)
     if (params.size() > 1)
       singleFile = StringUtils::EqualsNoCase(params[1], "true");
     else
-      singleFile = CGUIDialogYesNo::ShowAndGetInput(iHeading,20426,20427,-1,20428,20429,cancelled);
+      singleFile = CGUIDialogYesNo::ShowAndGetInput(iHeading, 20426, cancelled, 20428, 20429);
 
     if (cancelled)
         return -1;
@@ -1570,7 +1591,7 @@ int CBuiltins::Execute(const std::string& execString)
       if (params.size() > 2)
         thumbs = StringUtils::EqualsNoCase(params[2], "true");
       else
-        thumbs = CGUIDialogYesNo::ShowAndGetInput(iHeading,20430,-1,-1,cancelled);
+        thumbs = CGUIDialogYesNo::ShowAndGetInput(iHeading, 20430, cancelled);
     }
 
     if (cancelled)
@@ -1581,7 +1602,7 @@ int CBuiltins::Execute(const std::string& execString)
       if (params.size() > 4)
         actorThumbs = StringUtils::EqualsNoCase(params[4], "true");
       else
-        actorThumbs = CGUIDialogYesNo::ShowAndGetInput(iHeading,20436,-1,-1,cancelled);
+        actorThumbs = CGUIDialogYesNo::ShowAndGetInput(iHeading, 20436, cancelled);
     }
 
     if (cancelled)
@@ -1592,7 +1613,7 @@ int CBuiltins::Execute(const std::string& execString)
       if (params.size() > 3)
         overwrite = StringUtils::EqualsNoCase(params[3], "true");
       else
-        overwrite = CGUIDialogYesNo::ShowAndGetInput(iHeading,20431,-1,-1,cancelled);
+        overwrite = CGUIDialogYesNo::ShowAndGetInput(iHeading, 20431, cancelled);
     }
 
     if (cancelled)
@@ -1739,8 +1760,8 @@ int CBuiltins::Execute(const std::string& execString)
     ADDON::TYPE type = TranslateType(params[0]);
     if (CAddonMgr::Get().GetDefault(type, addon))
     {
-      CGUIDialogAddonSettings::ShowAndGetInput(addon);
-      if (type == ADDON_VIZ)
+      bool changed = CGUIDialogAddonSettings::ShowAndGetInput(addon);
+      if (type == ADDON_VIZ && changed)
         g_windowManager.SendMessage(GUI_MSG_VISUALISATION_RELOAD, 0, 0);
     }
   }

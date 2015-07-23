@@ -365,14 +365,14 @@ public:
 
   float GetDimScreenSaverLevel() const;
 
-  bool SwitchToFullScreen();
+  bool SwitchToFullScreen(bool force = false);
 
   CSplash* GetSplash() { return m_splash; }
   void SetRenderGUI(bool renderGUI);
   bool GetRenderGUI() const { return m_renderGUI; };
 
   bool SetLanguage(const std::string &strLanguage);
-  bool LoadLanguage(bool reload, bool& fallback);
+  bool LoadLanguage(bool reload);
 
   ReplayGainSettings& GetReplayGainSettings() { return m_replayGainSettings; }
 
@@ -463,6 +463,7 @@ protected:
   bool m_bPresentFrame;
   unsigned int m_lastFrameTime;
   unsigned int m_lastRenderTime;
+  bool m_skipGuiRender;
 
   bool m_bStandalone;
   bool m_bEnableLegacyRes;
@@ -501,6 +502,8 @@ protected:
   ReplayGainSettings m_replayGainSettings;
   
   std::vector<IActionListener *> m_actionListeners;
+
+  bool m_fallbackLanguageLoaded;
   
 private:
   CCriticalSection                m_critSection;                 /*!< critical section for all changes to this class, except for changes to triggers */

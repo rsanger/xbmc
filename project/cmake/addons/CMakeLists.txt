@@ -101,11 +101,13 @@ if(ADDON_SRC_PREFIX)
   message(STATUS "Overriding addon source directory prefix: ${ADDON_SRC_PREFIX}")
 endif()
 
-if(NOT KODI_LIB_DIR)
-  set(KODI_LIB_DIR "${DEPENDS_PATH}/lib/kodi")
+if(NOT APP_LIB_DIR)
+  set(APP_LIB_DIR "${DEPENDS_PATH}/lib/kodi")
 else()
-  file(TO_CMAKE_PATH "${KODI_LIB_DIR}" KODI_LIB_DIR)
+  file(TO_CMAKE_PATH "${APP_LIB_DIR}" APP_LIB_DIR)
 endif()
+
+set(APP_PREFIX "${CMAKE_INSTALL_PREFIX}")
 
 # check for platform specific stuff
 if(EXISTS ${PLATFORM_DIR}/defines.txt)
@@ -122,7 +124,7 @@ include(${APP_ROOT}/project/cmake/scripts/common/check_target_platform.cmake)
 # check install permissions
 set(ADDON_INSTALL_DIR ${CMAKE_INSTALL_PREFIX})
 check_install_permissions(${CMAKE_INSTALL_PREFIX} can_write)
-if(NOT ${can_write} AND NOT WIN32)
+if(NOT ${can_write} AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
   set(NEED_SUDO TRUE)
   set(ADDON_INSTALL_DIR ${CMAKE_BINARY_DIR}/.install)
   message(STATUS "NEED_SUDO: ${NEED_SUDO}")
@@ -130,10 +132,10 @@ endif()
 
 ### prepare the build environment for the binary addons
 # copy the prepare-env.cmake script to the depends path so that we can include it
-file(COPY ${APP_ROOT}/project/cmake/scripts/common/prepare-env.cmake DESTINATION ${KODI_LIB_DIR})
+file(COPY ${APP_ROOT}/project/cmake/scripts/common/prepare-env.cmake DESTINATION ${APP_LIB_DIR})
 
 # add the location of prepare-env.cmake to CMAKE_MODULE_PATH so that it is found
-list(APPEND CMAKE_MODULE_PATH ${KODI_LIB_DIR})
+list(APPEND CMAKE_MODULE_PATH ${APP_LIB_DIR})
 
 # include prepare-env.cmake which contains the logic to install the addon header bindings etc
 include(prepare-env)

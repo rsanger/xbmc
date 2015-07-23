@@ -178,7 +178,7 @@ class CAdvancedSettings : public ISettingCallback, public ISettingsHandler
     int m_videoBlackBarColour;
     int m_videoIgnoreSecondsAtStart;
     float m_videoIgnorePercentAtEnd;
-    bool m_audioApplyDrc;
+    float m_audioApplyDrc;
     bool m_useFfmpegVda;
 
     int   m_videoVDPAUScaling;
@@ -392,6 +392,11 @@ class CAdvancedSettings : public ISettingCallback, public ISettingsHandler
     std::string m_stereoscopicregex_3d;
     std::string m_stereoscopicregex_sbs;
     std::string m_stereoscopicregex_tab;
+
+    /*!< @brief position behavior of ass subtitiles when setting "subtitle position on screen" set to "fixed"
+    True to show at the fixed position set in video calibration
+    False to show at the bottom of video (default) */
+    bool m_videoAssFixedWorks;
 
     std::string m_logFolder;
 

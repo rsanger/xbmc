@@ -26,11 +26,11 @@
 #include "guilib/Geometry.h"
 #include "guilib/Resolution.h"
 #include "threads/SharedSection.h"
-#include "threads/Thread.h"
 #include "settings/VideoSettings.h"
 #include "OverlayRenderer.h"
 #include <deque>
 #include "PlatformDefs.h"
+#include "threads/Event.h"
 
 class CRenderCapture;
 
@@ -54,7 +54,7 @@ public:
   ~CXBMCRenderManager();
 
   // Functions called from the GUI
-  void GetVideoRect(CRect &source, CRect &dest);
+  void GetVideoRect(CRect &source, CRect &dest, CRect &view);
   float GetAspectRatio();
   void Update();
   void FrameMove();
@@ -162,10 +162,8 @@ public:
   CLinuxRenderer      *m_pRenderer;
 #endif
 
-  unsigned int GetOptimalBufferSize();
-
-  // Supported pixel formats, can be called before configure
-  std::vector<ERenderFormat> SupportedFormats();
+  // Get renderer info, can be called before configure
+  CRenderInfo GetRenderInfo();
 
   void Recover(); // called after resolution switch if something special is needed
 

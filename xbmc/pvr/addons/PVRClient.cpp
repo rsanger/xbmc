@@ -95,14 +95,13 @@ AddonPtr CPVRClient::GetRunningInstance() const
   return CAddon::GetRunningInstance();
 }
 
-bool CPVRClient::OnPreInstall()
+void CPVRClient::OnPreInstall()
 {
   // stop the pvr manager, so running pvr add-ons are stopped and closed
   PVR::CPVRManager::Get().Stop();
-  return false;
 }
 
-void CPVRClient::OnPostInstall(bool restart, bool update, bool modal)
+void CPVRClient::OnPostInstall(bool update, bool modal)
 {
   // (re)start the pvr manager
   PVR::CPVRManager::Get().Start(true);
@@ -1799,11 +1798,10 @@ bool CPVRClient::Autoconfigure(void)
         std::string strLogLine(StringUtils::Format(g_localizeStrings.Get(19689).c_str(), (*it).GetName().c_str(), (*it).GetIP().c_str()));
         CLog::Log(LOGDEBUG, "%s - %s", __FUNCTION__, strLogLine.c_str());
 
-        if (!CGUIDialogYesNo::ShowAndGetInput(g_localizeStrings.Get(19688), // Scanning for PVR services
+        if (!CGUIDialogYesNo::ShowAndGetInput(19688, // Scanning for PVR services
                                               strLogLine,
-                                              "",
-                                              g_localizeStrings.Get(19690) // Do you want to use this service?
-                                              ))
+                                              19690, // Do you want to use this service?
+                                              ""))
         {
           CLog::Log(LOGDEBUG, "%s - %s service found but not enabled by the user", __FUNCTION__, (*it).GetName().c_str());
           m_rejectedAvahiHosts.push_back(*it);

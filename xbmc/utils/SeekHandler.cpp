@@ -22,7 +22,7 @@
 
 #include <stdlib.h>
 #include "guilib/LocalizeStrings.h"
-#include "GUIInfoManager.h"
+#include "guilib/GraphicContext.h"
 #include "Application.h"
 #include "FileItem.h"
 #include "settings/AdvancedSettings.h"
@@ -34,9 +34,8 @@
 CSeekHandler::CSeekHandler()
 : m_seekDelay(500),
   m_requireSeek(false),
-  m_percent(0.0f),
-  m_percentPlayTime(0.0f),
   m_analogSeek(false),
+  m_seekSize(0),
   m_seekStep(0)
 {
 }
@@ -54,11 +53,9 @@ CSeekHandler& CSeekHandler::Get()
   return instance;
 }
 
-void CSeekHandler::Reset()
+void CSeekHandler::Configure()
 {
-  m_requireSeek = false;
-  m_percent = 0;
-  m_seekStep = 0;
+  Reset();
 
   m_seekDelays.clear();
   m_seekDelays.insert(std::make_pair(SEEK_TYPE_VIDEO, CSettings::Get().GetInt("videoplayer.seekdelay")));
@@ -91,100 +88,114 @@ void CSeekHandler::Reset()
   }
 }
 
-int CSeekHandler::GetSeekSeconds(bool forward, SeekType type)
+void CSeekHandler::Reset()
 {
-  m_seekStep = m_seekStep + (forward ? 1 : -1);
+  m_requireSeek = false;
+  m_analogSeek = false;
+  m_seekStep = 0;
+  m_seekSize = 0;
+}
 
-  if (m_seekStep == 0)
+int CSeekHandler::GetSeekStepSize(SeekType type, int step)
+{
+  if (step == 0)
     return 0;
 
-  std::vector<int> seekSteps(m_seekStep > 0 ? m_forwardSeekSteps.at(type) : m_backwardSeekSteps.at(type));
+  std::vector<int> seekSteps(step > 0 ? m_forwardSeekSteps.at(type) : m_backwardSeekSteps.at(type));
 
   if (seekSteps.empty())
   {
     CLog::Log(LOGERROR, "SeekHandler - %s - No %s %s seek steps configured.", __FUNCTION__,
-              (type == SeekType::SEEK_TYPE_VIDEO ? "video" : "music"), (m_seekStep > 0 ? "forward" : "backward"));
+              (type == SeekType::SEEK_TYPE_VIDEO ? "video" : "music"), (step > 0 ? "forward" : "backward"));
     return 0;
   }
 
   int seconds = 0;
 
   // when exceeding the selected amount of steps repeat/sum up the last step size
-  if ((size_t)abs(m_seekStep) <= seekSteps.size())
-    seconds = seekSteps.at(abs(m_seekStep) - 1);
+  if (static_cast<size_t>(abs(step)) <= seekSteps.size())
+    seconds = seekSteps.at(abs(step) - 1);
   else
-    seconds = seekSteps.back() * (abs(m_seekStep) - seekSteps.size() + 1);
+    seconds = seekSteps.back() * (abs(step) - seekSteps.size() + 1);
 
   return seconds;
 }
 
 void CSeekHandler::Seek(bool forward, float amount, float duration /* = 0 */, bool analogSeek /* = false */, SeekType type /* = SEEK_TYPE_VIDEO */)
 {
+  CSingleLock lock(m_critSection);
+
   // not yet seeking
   if (!m_requireSeek)
   {
-    if (g_infoManager.GetTotalPlayTime())
-      m_percent = (float)g_infoManager.GetPlayTime() / g_infoManager.GetTotalPlayTime() * 0.1f;
-    else
-      m_percent = 0.0f;
-    m_percentPlayTime = m_percent;
+    // use only the first step forward/backward for a seek without a delay
+    if (!analogSeek && m_seekDelays.at(type) == 0)
+    {
+      SeekSeconds(GetSeekStepSize(type, forward ? 1 : -1));
+      return;
+    }
 
-    // tell info manager that we have started a seek operation
     m_requireSeek = true;
-    g_infoManager.SetSeeking(true);
-    m_seekStep = 0;
     m_analogSeek = analogSeek;
     m_seekDelay = analogSeek ? analogSeekDelay : m_seekDelays.at(type);
   }
 
   // calculate our seek amount
-  if (!g_infoManager.m_performingSeek)
+  if (analogSeek)
   {
-    if (analogSeek)
-    {
-      //100% over 1 second.
-      float speed = 100.0f;
-      if( duration )
-        speed *= duration;
-      else
-        speed /= g_infoManager.GetFPS();
+    //100% over 1 second.
+    float speed = 100.0f;
+    if( duration )
+      speed *= duration;
+    else
+      speed /= g_graphicsContext.GetFPS();
 
-      if (forward)
-        m_percent += amount * amount * speed;
-      else
-        m_percent -= amount * amount * speed;
+    double totalTime = g_application.GetTotalTime();
+    if (totalTime < 0)
+      totalTime = 0;
+
+    int seekSize = (amount * amount * speed) * totalTime / 100;
+    if (forward)
+      m_seekSize += seekSize;
+    else
+      m_seekSize -= seekSize;
+  }
+  else
+  {
+    m_seekStep += forward ? 1 : -1;
+    int seekSeconds = GetSeekStepSize(type, m_seekStep);
+    if (seekSeconds != 0)
+    {
+      m_seekSize = seekSeconds;
     }
     else
     {
-      int seekSeconds = GetSeekSeconds(forward, type);
-      if (seekSeconds != 0)
-      {
-        float percentPerSecond = 0.0f;
-        if (g_infoManager.GetTotalPlayTime())
-          percentPerSecond = 100.0f / (float)g_infoManager.GetTotalPlayTime();
-
-        m_percent = m_percentPlayTime + percentPerSecond * seekSeconds;
-
-        g_infoManager.SetSeekStepSize(seekSeconds);
-      }
-      else
-      {
-        // nothing to do, abort seeking
-        m_requireSeek = false;
-        g_infoManager.SetSeeking(false);
-      }
+      // nothing to do, abort seeking
+      Reset();
     }
-
-    if (m_percent > 100.0f) m_percent = 100.0f;
-    if (m_percent < 0.0f)   m_percent = 0.0f;
   }
 
   m_timer.StartZero();
 }
 
-float CSeekHandler::GetPercent() const
+void CSeekHandler::SeekSeconds(int seconds)
 {
-  return m_percent;
+  // abort if we do not have a play time or already perform a seek
+  if (seconds == 0)
+    return;
+
+  CSingleLock lock(m_critSection);
+  m_seekSize = seconds;
+
+  // perform relative seek
+  g_application.m_pPlayer->SeekTimeRelative(static_cast<int64_t>(seconds * 1000));
+
+  Reset();
+}
+
+int CSeekHandler::GetSeekSize() const
+{
+  return m_seekSize;
 }
 
 bool CSeekHandler::InProgress() const
@@ -194,19 +205,14 @@ bool CSeekHandler::InProgress() const
 
 void CSeekHandler::Process()
 {
-  if (m_timer.GetElapsedMilliseconds() > m_seekDelay && m_requireSeek)
+  if (m_timer.GetElapsedMilliseconds() >= m_seekDelay && m_requireSeek)
   {
-    g_infoManager.m_performingSeek = true;
+    CSingleLock lock(m_critSection);
 
-    // reset seek step size
-    g_infoManager.SetSeekStepSize(0);
+    // perform relative seek
+    g_application.m_pPlayer->SeekTimeRelative(static_cast<int64_t>(m_seekSize * 1000));
 
-    // calculate the seek time
-    double time = g_infoManager.GetTotalPlayTime() * m_percent * 0.01;
-
-    g_application.SeekTime(time);
-    m_requireSeek = false;
-    g_infoManager.SetSeeking(false);
+    Reset();
   }
 }
 
@@ -234,7 +240,7 @@ void CSeekHandler::OnSettingChanged(const CSetting *setting)
       setting->GetId() == "videoplayer.seeksteps" ||
       setting->GetId() == "musicplayer.seekdelay" ||
       setting->GetId() == "musicplayer.seeksteps")
-    Reset();
+    Configure();
 }
 
 bool CSeekHandler::OnAction(const CAction &action)
@@ -271,14 +277,12 @@ bool CSeekHandler::OnAction(const CAction &action)
     }
     case ACTION_NEXT_SCENE:
     {
-      if (g_application.m_pPlayer->SeekScene(true))
-        g_infoManager.SetDisplayAfterSeek();
+      g_application.m_pPlayer->SeekScene(true);
       return true;
     }
     case ACTION_PREV_SCENE:
     {
-      if (g_application.m_pPlayer->SeekScene(false))
-        g_infoManager.SetDisplayAfterSeek();
+      g_application.m_pPlayer->SeekScene(false);
       return true;
     }
     case ACTION_ANALOG_SEEK_FORWARD:

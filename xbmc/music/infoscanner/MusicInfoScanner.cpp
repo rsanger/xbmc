@@ -28,7 +28,6 @@
 #include "Util.h"
 #include "utils/md5.h"
 #include "GUIInfoManager.h"
-#include "utils/Variant.h"
 #include "NfoFile.h"
 #include "music/tags/MusicInfoTag.h"
 #include "guilib/GUIWindowManager.h"
@@ -43,7 +42,6 @@
 #include "FileItem.h"
 #include "guilib/LocalizeStrings.h"
 #include "utils/StringUtils.h"
-#include "utils/TimeUtils.h"
 #include "utils/log.h"
 #include "utils/URIUtils.h"
 #include "TextureCache.h"
@@ -52,7 +50,6 @@
 #include "GUIUserMessages.h"
 #include "addons/AddonManager.h"
 #include "addons/Scraper.h"
-#include "CueDocument.h"
 
 #include <algorithm>
 
@@ -765,6 +762,10 @@ int CMusicInfoScanner::RetrieveMusicInfo(const std::string& strDirectory, CFileI
   {
     if (m_bStop)
       break;
+
+    // mark albums without a title as singles
+    if (album->strAlbum.empty())
+      album->releaseType = CAlbum::Single;
 
     album->strPath = strDirectory;
     m_musicDatabase.AddAlbum(*album);

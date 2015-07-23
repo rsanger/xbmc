@@ -21,7 +21,6 @@
 
 #include "interfaces/legacy/AddonClass.h"
 #include "interfaces/legacy/Tuple.h"
-#include "interfaces/legacy/swighelper.h"
 #include "interfaces/legacy/wsgi/WsgiResponseBody.h"
 #include "network/httprequesthandler/python/HTTPPythonRequest.h"
 
@@ -58,8 +57,6 @@ namespace XBMCAddon
 
       WsgiResponseBody m_body;
 #endif
-    };    
+    };
   }
 }
-
-

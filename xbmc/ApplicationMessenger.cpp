@@ -22,7 +22,6 @@
 #include "ApplicationMessenger.h"
 #include "Application.h"
 
-#include "LangInfo.h"
 #include "PlayListPlayer.h"
 #include "Util.h"
 #include "pictures/GUIWindowSlideShow.h"
@@ -42,7 +41,6 @@
 #include "guilib/Resolution.h"
 #include "GUIInfoManager.h"
 #include "utils/Splash.h"
-#include "cores/IPlayer.h"
 #include "cores/VideoRenderers/RenderManager.h"
 #include "cores/AudioEngine/AEFactory.h"
 #include "music/tags/MusicInfoTag.h"
@@ -56,9 +54,7 @@
 #elif defined(TARGET_DARWIN)
 #include "osx/CocoaInterface.h"
 #endif
-#include "addons/AddonCallbacks.h"
 #include "addons/AddonCallbacksGUI.h"
-#include "storage/MediaManager.h"
 #include "guilib/LocalizeStrings.h"
 #include "threads/SingleLock.h"
 #include "URL.h"
@@ -533,8 +529,8 @@ void CApplicationMessenger::ProcessMessage(ThreadMessage *pMsg)
       break;
 
     case TMSG_SWITCHTOFULLSCREEN:
-      if( g_windowManager.GetActiveWindow() != WINDOW_FULLSCREEN_VIDEO )
-        g_application.SwitchToFullScreen();
+      if(g_windowManager.GetActiveWindow() != WINDOW_FULLSCREEN_VIDEO)
+        g_application.SwitchToFullScreen(true);
       break;
 
     case TMSG_SETVIDEORESOLUTION:
@@ -542,6 +538,18 @@ void CApplicationMessenger::ProcessMessage(ThreadMessage *pMsg)
         RESOLUTION res = (RESOLUTION)pMsg->param1;
         bool forceUpdate = pMsg->param2 == 1 ? true : false;
         g_graphicsContext.SetVideoResolution(res, forceUpdate);
+      }
+      break;
+
+    case TMSG_VIDEORESIZE:
+      {
+        XBMC_Event newEvent;
+        memset(&newEvent, 0, sizeof(newEvent));
+        newEvent.type = XBMC_VIDEORESIZE;
+        newEvent.resize.w = pMsg->param1;
+        newEvent.resize.h = pMsg->param2;
+        g_application.OnEvent(newEvent);
+        g_windowManager.MarkDirty();
       }
       break;
 
@@ -699,13 +707,13 @@ void CApplicationMessenger::ProcessMessage(ThreadMessage *pMsg)
       {
         CGUIWindow *window = (CGUIWindow *)pMsg->lpVoid;
         if (window)
-          window->Close(pMsg->param1 & 0x1 ? true : false, pMsg->param1, pMsg->param1 & 0x2 ? true : false);
+          window->Close(pMsg->param2 & 0x1 ? true : false, pMsg->param1, pMsg->param2 & 0x2 ? true : false);
       }
       break;
 
     case TMSG_GUI_ACTIVATE_WINDOW:
       {
-        g_windowManager.ActivateWindow(pMsg->param1, pMsg->params, pMsg->param2 > 0);
+        g_windowManager.ActivateWindow(pMsg->param1, pMsg->params, pMsg->param2 & 0x1 ? true : false, pMsg->param2 & 0x2 ? true : false);
       }
       break;
 
@@ -1256,9 +1264,10 @@ void CApplicationMessenger::Close(CGUIWindow *window, bool forceClose, bool wait
   SendMessage(tMsg, waitResult);
 }
 
-void CApplicationMessenger::ActivateWindow(int windowID, const vector<string> &params, bool swappingWindows)
+void CApplicationMessenger::ActivateWindow(int windowID, const vector<string> &params, bool swappingWindows, bool force  /* = false */)
 {
-  ThreadMessage tMsg = {TMSG_GUI_ACTIVATE_WINDOW, windowID, swappingWindows ? 1 : 0};
+  ThreadMessage tMsg = {TMSG_GUI_ACTIVATE_WINDOW, windowID};
+  tMsg.param2 = (swappingWindows ? 0x01 : 0) | (force ? 0x02 : 0);
   tMsg.params = params;
   SendMessage(tMsg, true);
 }

@@ -36,6 +36,9 @@ public:
   bool GetAddon(const std::string& addonID, ADDON::AddonPtr& addon);
   bool GetAddons(ADDON::VECADDONS& addons, const ADDON::TYPE &type = ADDON::ADDON_UNKNOWN);
 
+  /*! Get the addon IDs that has been set to disabled */
+  bool GetDisabled(std::vector<std::string>& addons);
+
   /*! \brief grab the (largest) add-on version for an add-on */
   ADDON::AddonVersion GetAddonVersion(const std::string &id);
 
@@ -137,12 +140,23 @@ public:
       \sa AddPackage, GetPackageHash
   */
   bool RemovePackage(const std::string& packageFileName);
+
+  /*! \brief allow adding a system addon like PVR or AUDIODECODER
+      \param addonID id of the addon
+  */
+  bool AddSystemAddon(const std::string &addonID);
+
+  /*! \brief check if system addon is registered
+      \param addonID id of the addon
+  */
+  bool IsSystemAddonRegistered(const std::string &addonID);
+
 protected:
   virtual void CreateTables();
   virtual void CreateAnalytics();
   virtual void UpdateTables(int version);
   virtual int GetMinSchemaVersion() const { return 15; }
-  virtual int GetSchemaVersion() const { return 18; }
+  virtual int GetSchemaVersion() const { return 19; }
   const char *GetBaseDBName() const { return "Addons"; }
 
   bool GetAddon(int id, ADDON::AddonPtr& addon);

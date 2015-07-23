@@ -24,10 +24,8 @@
 #include "Application.h"
 #include "input/Key.h"
 #include "WindowIDs.h"
-#include "cores/IPlayer.h"
-#ifdef HAS_VIDEO_PLAYBACK
 #include "cores/VideoRenderers/RenderManager.h"
-#else
+#ifndef HAS_VIDEO_PLAYBACK
 #include "cores/DummyVideoPlayer.h"
 #endif
 
@@ -67,6 +65,8 @@ void CGUIVideoControl::Render()
       g_application.ResetScreenSaver();
 
     g_graphicsContext.SetViewWindow(m_posX, m_posY, m_posX + m_width, m_posY + m_height);
+    TransformMatrix mat;
+    g_graphicsContext.SetTransform(mat, 1.0, 1.0);
 
 #ifdef HAS_VIDEO_PLAYBACK
     color_t alpha = g_graphicsContext.MergeAlpha(0xFF000000) >> 24;
@@ -88,11 +88,13 @@ void CGUIVideoControl::Render()
     else
       g_renderManager.Render(false, 0, alpha);
 #else
-    ((CDummyVideoPlayer *)g_application.m_pPlayer->GetInternal())->Render();
+    ((CDummyVideoPlayer *)(g_application.m_pPlayer->GetInternal()).get())->Render();
 #endif
+
+    g_graphicsContext.RemoveTransform();
   }
   // TODO: remove this crap: HAS_VIDEO_PLAYBACK
-  // instantiateing a vidio control having no playback is complete nonsense
+  // instantiating a video control having no playback is complete nonsense
   CGUIControl::Render();
 }
 

@@ -469,7 +469,7 @@ bool CGUIDialogPVRChannelManager::OnClickButtonNewChannel()
     if (g_PVRClients->OpenDialogChannelAdd(channel))
       Update();
     else
-      CGUIDialogOK::ShowAndGetInput(2103, 0, 16029, 0);  // Add-on error;Check the log file for details.
+      CGUIDialogOK::ShowAndGetInput(2103, 16029);  // Add-on error;Check the log file for details.
   }
   return true;
 }
@@ -596,7 +596,7 @@ bool CGUIDialogPVRChannelManager::OnContextButton(int itemNumber, CONTEXT_BUTTON
   else if (button == CONTEXT_BUTTON_SETTINGS)
   {
     if (!g_PVRClients->OpenDialogChannelSettings(pItem->GetPVRChannelInfoTag()))
-      CGUIDialogOK::ShowAndGetInput(2103, 0, 16029, 0);  // Add-on error;Check the log file for details.
+      CGUIDialogOK::ShowAndGetInput(2103, 16029);  // Add-on error;Check the log file for details.
   }
   else if (button == CONTEXT_BUTTON_DELETE)
   {
@@ -619,7 +619,7 @@ bool CGUIDialogPVRChannelManager::OnContextButton(int itemNumber, CONTEXT_BUTTON
         Renumber();
       }
       else
-        CGUIDialogOK::ShowAndGetInput(2103, 0, 16029, 0);  // Add-on error;Check the log file for details.
+        CGUIDialogOK::ShowAndGetInput(2103, 16029);  // Add-on error;Check the log file for details.
     }
   }
   else if (button == CONTEXT_BUTTON_EDIT_SOURCE)
@@ -727,7 +727,7 @@ void CGUIDialogPVRChannelManager::RenameChannel(CFileItemPtr pItem)
     channel->SetChannelName(strChannelName);
 
     if (!g_PVRClients->RenameChannel(channel))
-      CGUIDialogOK::ShowAndGetInput(2103, 0, 16029, 0);  // Add-on error;Check the log file for details.
+      CGUIDialogOK::ShowAndGetInput(2103, 16029);  // Add-on error;Check the log file for details.
   }
 }
 
@@ -769,12 +769,14 @@ void CGUIDialogPVRChannelManager::SaveList(void)
   CPVRChannelGroupPtr group = g_PVRChannelGroups->GetGroupAll(m_bIsRadio);
   if (!group)
     return;
+
   for (int iListPtr = 0; iListPtr < m_channelItems->Size(); iListPtr++)
   {
-    if (!m_channelItems->HasPVRChannelInfoTag())
+    CFileItemPtr pItem = m_channelItems->Get(iListPtr);
+
+    if (!pItem->HasPVRChannelInfoTag())
       continue;
 
-    CFileItemPtr pItem = m_channelItems->Get(iListPtr);
     if (pItem->GetProperty("SupportsSettings").asBoolean())
       RenameChannel(pItem);
 

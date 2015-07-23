@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT([kodi], [14.9.702], [http://trac.kodi.tv])
+AC_INIT([kodi], [15.0.000], [http://trac.kodi.tv])
 AC_CONFIG_HEADERS([xbmc/config.h])
 AH_TOP([#pragma once])
 m4_include([m4/ax_prog_cc_for_build.m4])
@@ -64,10 +64,10 @@ AC_DEFUN([XB_FIND_SONAME],
     fi
   elif [[ "$host_vendor" != "apple" ]]; then
     AC_MSG_CHECKING([for lib$2 soname])
-    $1_FILENAME=$($CC -nostdlib -o /dev/null $LDFLAGS $4 -l$2 -Wl,-M 2>/dev/null | grep "^LOAD.*$2" | awk '{V=2; print $V}')
+    $1_FILENAME=$($CC -nostdlib -o /dev/null $CFLAGS $LDFLAGS $4 -l$2 -Wl,-M 2>/dev/null | grep "^LOAD.*$2" | awk '{V=2; print $V}')
     if [[ -z $$1_FILENAME ]]; then
       #try gold linker syntax
-      $1_FILENAME=$($CC -nostdlib -o /dev/null $LDFLAGS $4 -l$2 -Wl,-t 3>&1 1>&2 2>&3 | grep "lib$2")
+      $1_FILENAME=$($CC -nostdlib -o /dev/null $CFLAGS $LDFLAGS $4 -l$2 -Wl,-t 3>&1 1>&2 2>&3 | grep "lib$2")
     fi
     if [[ ! -z $$1_FILENAME ]]; then
       $1_SONAME=$($OBJDUMP -p $$1_FILENAME | grep "SONAME.*$2" | awk '{V=2; print $V}')
@@ -119,6 +119,7 @@ AC_DEFUN([XB_PUSH_FLAGS], [
 # version can be overridden by setting the following as ENV vars when running configure
 APP_NAME=${APP_NAME-$(${AWK} '/APP_NAME/ {print $2}' version.txt)}
 APP_NAME_LC=$(echo $APP_NAME | ${AWK} '{print tolower($0)}')
+APP_NAME_UC=$(echo $APP_NAME | ${AWK} '{print toupper($0)}')
 APP_VERSION_MAJOR=${APP_VERSION_MAJOR-$(${AWK} '/VERSION_MAJOR/ {print $2}' version.txt)}
 APP_VERSION_MINOR=${APP_VERSION_MINOR-$(${AWK} '/VERSION_MINOR/ {print $2}' version.txt)}
 APP_VERSION_TAG=${APP_VERSION_TAG-$(${AWK} '/VERSION_TAG/ {print $2}' version.txt)}
@@ -134,6 +135,7 @@ if test "$APP_NAME" != "" && test "$APP_VERSION_MAJOR" != "" && test "$APP_VERSI
 
   AC_SUBST(APP_NAME)
   AC_SUBST(APP_NAME_LC)
+  AC_SUBST(APP_NAME_UC)
   AC_SUBST(APP_VERSION)
   AC_SUBST(APP_VERSION_MAJOR)
   AC_SUBST(APP_VERSION_MINOR)
@@ -168,8 +170,6 @@ configure_debug="ERROR: this is a configure debug statement"
 missing_library="Could not find a required library. Please see the README for your platform."
 missing_headers="Could not find some required headers. Please see the README for your platform."
 missing_program="Could not find a required program. Please see the README for your platform."
-xrandr_not_found="== Could not find libXRandR. SDL will be used for resolution support. =="
-xrandr_disabled="== XRandR support disabled. SDL will be used for resolution support. =="
 waveform_enabled="== WAVEFORM enabled =="
 waveform_disabled="== WAVEFORM disabled =="
 spectrum_enabled="== SPECTRUM enabled =="
@@ -221,6 +221,8 @@ libcap_disabled="== Capabilities detection support disabled. =="
 libcap_not_found="== Could not find libcap. Capabilities detection support disabled. =="
 gtest_enabled="== Google Test Framework will be configured. =="
 gtest_disabled="== Google Test Framework will not be configured. =="
+breakpad_enabled="== Google Breakpad will be configured. =="
+breakpad_disabled="== Google Breakpad Framework will not be configured. =="
 
 libudev_not_found="== Could not find libudev. Will use polling to check for device changes. =="
 libudev_disabled="== udev support disabled. Will use polling to check for device changes. =="
@@ -313,12 +315,6 @@ AC_ARG_ENABLE([joystick],
   [enable SDL joystick support (default is auto)])],
   [use_joystick=$enableval],
   [use_joystick=auto])
-
-AC_ARG_ENABLE([xrandr],
-  [AS_HELP_STRING([--enable-xrandr],
-  [enable XRandR support (default is yes)])],
-  [use_xrandr=$enableval],
-  [use_xrandr=yes])
 
 AC_ARG_ENABLE([waveform],
   [AS_HELP_STRING([--enable-waveform],
@@ -500,6 +496,12 @@ AC_ARG_ENABLE([texturepacker],
   [use_texturepacker=$enableval],
   [use_texturepacker=auto])
 
+AC_ARG_ENABLE([lirc],
+  [AS_HELP_STRING([--disable-lirc],
+  [disable lirc support (default is enabled)])],
+  [AC_MSG_RESULT("Lirc disabled")],
+  [AC_DEFINE([HAVE_LIRC], [1], ["Lirc enabled"])])
+
 AC_ARG_WITH([lirc-device],
   [AS_HELP_STRING([--with-lirc-device=file],
   [specify the default LIRC device (default is /dev/lircd)])],
@@ -542,6 +544,12 @@ AC_ARG_ENABLE([gtest],
   [configure Google Test Framework (default is yes)])],
   [configure_gtest=$enableval],
   [configure_gtest=yes])
+
+AC_ARG_ENABLE([breakpad],
+  [AS_HELP_STRING([--enable-breakpad],
+  [configure Google Breakpad (default is no)])],
+  [use_breakpad=$enableval],
+  [use_breakpad=no])
 
 AC_ARG_ENABLE([codec],
   [AS_HELP_STRING([--enable-codec],
@@ -711,12 +719,16 @@ case $host in
 esac
 AC_SUBST([ARCH])
 
-check_sdl_arch=[`file $NATIVE_ROOT/lib/libSDL_image.dylib | awk '{print $NF}'`]
-if test "x$check_sdl_arch" = "xi386" ; then
-  DARWIN_NATIVE_ARCH=-m32
-elif test "x$check_sdl_arch" = "xx86_64" ; then
-  DARWIN_NATIVE_ARCH=-m64
-fi
+case $host in
+  *-apple-darwin*)
+     check_sdl_arch=[`file $NATIVE_ROOT/lib/libSDL_image.dylib | awk '{print $NF}'`]
+     if test "x$check_sdl_arch" = "xi386" ; then
+       DARWIN_NATIVE_ARCH=-m32
+     elif test "x$check_sdl_arch" = "xx86_64" ; then
+       DARWIN_NATIVE_ARCH=-m64
+     fi
+     ;;
+esac
 AC_SUBST([DARWIN_NATIVE_ARCH])
 
 if test "$target_platform" = "target_android" ; then
@@ -735,6 +747,7 @@ case $use_platform in
      use_arch="arm"
      use_cpu=arm1176jzf-s
      use_hardcoded_tables="yes"
+     use_openmax=no
      ARCH="arm"
      AC_DEFINE(HAS_EGLGLES, [1], [Define if supporting EGL based GLES Framebuffer])
      USE_OMXLIB=1; AC_DEFINE([HAVE_OMXLIB],[1],["Define to 1 if OMX libs is enabled"])
@@ -743,6 +756,17 @@ case $use_platform in
      CXXFLAGS="$CXXFLAGS"
      ;;
 esac
+
+if test "$host_vendor" = "apple"; then
+  use_avahi=no
+  use_alsa=no
+  use_openmax=no
+  use_goom=no
+  use_libudev=no
+  use_libusb=no
+  use_x11=no
+  use_wayland=no
+fi
 
 XBMC_SETUP_ARCH_DEFINES()
 
@@ -777,7 +801,11 @@ else
     DEBUG_FLAGS="-pg -DNDEBUG=1"
   else
     final_message="$final_message\n  Profiling:\tNo"
-    DEBUG_FLAGS="-DNDEBUG=1"
+    if test "$use_breakpad" = "yes"; then
+       DEBUG_FLAGS="-g -DNDEBUG=1"
+    else
+       DEBUG_FLAGS="-DNDEBUG=1"
+    fi
   fi
 fi
 CFLAGS="$DEBUG_FLAGS $CFLAGS"
@@ -940,7 +968,8 @@ AC_LANG_POP([C++])
 
 # Python
 if test -z "$PYTHON_NOVERSIONCHECK"; then
-  AX_PYTHON_DEVEL([>= 2.4])
+  AX_PYTHON_DEVEL([>= '2.6'])
+  AX_PYTHON_DEVEL([< '3.0'])
   PYTHON_VERSION=$ac_python_version
 fi
 
@@ -952,7 +981,7 @@ else
 fi
 
 # Wayland
-if test "$use_wayland" = "yes" && test "$host_vendor" != "apple"; then
+if test "$use_wayland" = "yes"; then
   AC_MSG_NOTICE($wayland_enabled)
   PKG_CHECK_MODULES([WAYLAND_CLIENT],    [wayland-client],
     [INCLUDES="$INCLUDES $WAYLAND_CLIENT_CFLAGS";
@@ -1295,7 +1324,7 @@ if test "$use_optical_drive" = "yes"; then
 fi
 
 # Alsa
-if test "$use_alsa" = "yes" && test "$host_vendor" != "apple"; then
+if test "$use_alsa" = "yes"; then
   PKG_CHECK_MODULES([ALSA],  [alsa],
     [INCLUDES="$INCLUDES $ALSA_CFLAGS"; LIBS="$LIBS $ALSA_LIBS"],
     AC_MSG_ERROR($missing_library))
@@ -1336,21 +1365,16 @@ else
 fi
 
 # avahi
-if test "$host_vendor" = "apple" ; then
-  use_avahi="no"
-  AC_MSG_RESULT($avahi_disabled)
-else
+if test "$use_avahi" = "yes"; then
+  AC_CHECK_LIB([avahi-common], [main],,
+    use_avahi=no;AC_MSG_RESULT($avahi_not_found))
   if test "$use_avahi" = "yes"; then
-    AC_CHECK_LIB([avahi-common], [main],,
+    #either both libs or none
+    AC_CHECK_LIB([avahi-client], [main],,
       use_avahi=no;AC_MSG_RESULT($avahi_not_found))
-    if test "$use_avahi" = "yes"; then
-      #either both libs or none
-      AC_CHECK_LIB([avahi-client], [main],,
-        use_avahi=no;AC_MSG_RESULT($avahi_not_found))
-    fi
-  else
-    AC_MSG_RESULT($avahi_disabled)
   fi
+else
+  AC_MSG_RESULT($avahi_disabled)
 fi
 
 # mdnsembedded
@@ -1375,7 +1399,7 @@ fi
 AC_SUBST(USE_MDNSEMBEDDED)
 
 # X11
-if test "$use_x11" = "yes" && test "$host_vendor" != "apple"; then
+if test "$use_x11" = "yes"; then
   AC_MSG_NOTICE($x11_enabled)
   PKG_CHECK_MODULES([X11],    [x11],
     [INCLUDES="$INCLUDES $X11_CFLAGS"; LIBS="$LIBS $X11_LIBS"],
@@ -1383,25 +1407,15 @@ if test "$use_x11" = "yes" && test "$host_vendor" != "apple"; then
   PKG_CHECK_MODULES([XEXT],  [xext],
     [INCLUDES="$INCLUDES $XEXT_CFLAGS"; LIBS="$LIBS $XEXT_LIBS"],
     AC_MSG_ERROR($missing_library))
+  PKG_CHECK_MODULES([XRANDR], [xrandr],
+    [INCLUDES="$INCLUDES $XRANDR_CFLAGS"; LIBS="$LIBS $XRANDR_LIBS"],
+    AC_MSG_ERROR($missing_library))
   PKG_CHECK_MODULES([DRM],  [libdrm],
     [INCLUDES="$INCLUDES $DRM_CFLAGS"; LIBS="$LIBS $DRM_LIBS"],
     AC_MSG_ERROR($missing_library))
   AC_DEFINE([HAVE_X11], [1], [Define to 1 if you have X11 libs installed.])
 else
   AC_MSG_RESULT($x11_disabled)
-fi
-
-# XRandR
-if test "$host_vendor" = "apple" || test "$use_x11" = "no"; then
-  use_xrandr="no"
-  AC_MSG_RESULT($xrandr_disabled)
-else
-  if test "$use_xrandr" = "yes" ; then
-    AC_CHECK_LIB([Xrandr], [main],,
-      use_xrandr="no";AC_MSG_RESULT($xrandr_not_found))
-  else
-    AC_MSG_RESULT($xrandr_disabled)
-  fi
 fi
 
 # WAVEFORM
@@ -1423,17 +1437,12 @@ else
 fi
 
 # GOOM
-if test "$host_vendor" = "apple" ; then
+if test "$use_goom" = "yes" && test "$use_gl" = "yes"; then
+  AC_MSG_NOTICE($goom_enabled)
+  DISABLE_GOOM=0
+else
   AC_MSG_NOTICE($goom_disabled)
   DISABLE_GOOM=1
-else
-  if test "$use_goom" = "yes" && test "$use_gl" = "yes"; then
-    AC_MSG_NOTICE($goom_enabled)
-    DISABLE_GOOM=0
-  else
-    AC_MSG_NOTICE($goom_disabled)
-    DISABLE_GOOM=1
-  fi
 fi
 
 # RSXS
@@ -1599,22 +1608,17 @@ fi
 
 # libudev
 USE_LIBUDEV=0
-if test "$host_vendor" = "apple" ; then
-  use_libudev="no"
-  AC_MSG_NOTICE($libudev_disabled)
+if test "$use_libudev" = "auto"; then
+  PKG_CHECK_MODULES([UDEV],[libudev],,[use_libudev="no";AC_MSG_RESULT($libudev_not_found)])
+elif test "$use_libudev" = "yes" ; then
+  PKG_CHECK_MODULES([UDEV],[libudev],,[use_libudev="no";AC_MSG_ERROR($libudev_not_found)])
 else
-  if test "$use_libudev" = "auto"; then
-    PKG_CHECK_MODULES([UDEV],[libudev],,[use_libudev="no";AC_MSG_RESULT($libudev_not_found)])
-  elif test "$use_libudev" = "yes" ; then
-    PKG_CHECK_MODULES([UDEV],[libudev],,[use_libudev="no";AC_MSG_ERROR($libudev_not_found)])
-  else
-    AC_MSG_NOTICE($libudev_disabled)
-  fi
+  AC_MSG_NOTICE($libudev_disabled)
+fi
 
-  if test "x$use_libudev" != "xno"; then
-    USE_LIBUDEV=1;INCLUDES="$INCLUDES $UDEV_CFLAGS";LIBS="$LIBS $UDEV_LIBS"
-    AC_DEFINE([HAVE_LIBUDEV],[1],["Define to 1 if libudev is installed"])
-  fi
+if test "x$use_libudev" != "xno"; then
+  USE_LIBUDEV=1;INCLUDES="$INCLUDES $UDEV_CFLAGS";LIBS="$LIBS $UDEV_LIBS"
+  AC_DEFINE([HAVE_LIBUDEV],[1],["Define to 1 if libudev is installed"])
 fi
 
 # libusb
@@ -1625,26 +1629,21 @@ if test "x$use_libudev" != "xno"; then
   use_libusb="no"
   AC_MSG_NOTICE($libusb_disabled_udev_found)
 else
-  if test "$host_vendor" = "apple" ; then
-    use_libusb="no"
-    AC_MSG_NOTICE($libusb_disabled)
-  else
-    if echo "$ARCH" | grep -q freebsd ; then
-      AC_CHECK_LIB([usb],[main],
+  if echo "$ARCH" | grep -q freebsd ; then
+    AC_CHECK_LIB([usb],[main],
 	  	[use_libusb="yes";USB_LIBS="-lusb"],
 		[use_libusb="no";AC_MSG_RESULT($libusb_not_found)])
-    elif test "$use_libusb" = "auto"; then
-      PKG_CHECK_MODULES([USB],[libusb],,[use_libusb="no";AC_MSG_RESULT($libusb_not_found)])
-    elif test "$use_libusb" = "yes"; then
-      PKG_CHECK_MODULES([USB],[libusb],,[use_libusb="no";AC_MSG_ERROR($libusb_not_found)])
-    else
-      AC_MSG_NOTICE($libusb_disabled)
-    fi
-  
-    if test "x$use_libusb" != "xno"; then
-      USE_LIBUSB=1;INCLUDES="$INCLUDES $USB_CFLAGS";LIBS="$LIBS $USB_LIBS"
-      AC_DEFINE([HAVE_LIBUSB],[1],["Define to 1 if libusb is installed"])
-    fi
+  elif test "$use_libusb" = "auto"; then
+    PKG_CHECK_MODULES([USB],[libusb],,[use_libusb="no";AC_MSG_RESULT($libusb_not_found)])
+  elif test "$use_libusb" = "yes"; then
+    PKG_CHECK_MODULES([USB],[libusb],,[use_libusb="no";AC_MSG_ERROR($libusb_not_found)])
+  else
+    AC_MSG_NOTICE($libusb_disabled)
+  fi
+
+  if test "x$use_libusb" != "xno"; then
+    USE_LIBUSB=1;INCLUDES="$INCLUDES $USB_CFLAGS";LIBS="$LIBS $USB_LIBS"
+    AC_DEFINE([HAVE_LIBUSB],[1],["Define to 1 if libusb is installed"])
   fi
 fi
 
@@ -1654,9 +1653,9 @@ if test "x$use_libcec" != "xno"; then
   # libcec is dyloaded, so we need to check for its headers and link any depends.
   if test "x$use_libcec" != "xno"; then
     if test "x$use_libcec" != "xauto"; then
-      PKG_CHECK_MODULES([CEC],[libcec >= 2.1.0],,[use_libcec="no";AC_MSG_ERROR($libcec_disabled)])
+      PKG_CHECK_MODULES([CEC],[libcec >= 3.0.0],,[use_libcec="no";AC_MSG_ERROR($libcec_disabled)])
     else
-      PKG_CHECK_MODULES([CEC],[libcec >= 2.1.0],,[use_libcec="no";AC_MSG_RESULT($libcec_disabled)])
+      PKG_CHECK_MODULES([CEC],[libcec >= 3.0.0],,[use_libcec="no";AC_MSG_RESULT($libcec_disabled)])
     fi
 
     if test "x$use_libcec" != "xno"; then
@@ -1907,29 +1906,19 @@ else
 fi
 
 # OpenMax
-if test "$host_vendor" = "apple" ; then
-  use_openmax="no"
-  USE_OPENMAX=0
-  AC_MSG_NOTICE($openmax_disabled)
-elif test "$target_platform" = "target_raspberry_pi"; then
-  use_openmax="no"
-  USE_OPENMAX=0
-  AC_MSG_NOTICE($openmax_disabled)
-else
-  if test "$use_gles" = "yes" && test "$use_openmax" = "auto"; then
+if test "$use_gles" = "yes" && test "$use_openmax" = "auto"; then
 
-    AC_CHECK_HEADERS([OMX_Core.h],
-                      USE_OPENMAX=1;[INCLUDES="$INCLUDES $OPENMAX_CFLAGS"; LIBS="$LIBS $OPENMAX_LIBS";AC_DEFINE([HAVE_LIBOPENMAX], [1], [Define to 1 if you have the OpenMax library.])],
-                      use_openmax=no;USE_OPENMAX=0;AC_MSG_RESULT($openmax_not_found))
-  elif test "$use_gles" = "yes" && test "$use_openmax" = "yes"; then
-    AC_CHECK_HEADERS([OMX_Core.h],
-                      USE_OPENMAX=1;[INCLUDES="$INCLUDES $OPENMAX_CFLAGS"; LIBS="$LIBS $OPENMAX_LIBS";AC_DEFINE([HAVE_LIBOPENMAX], [1], [Define to 1 if you have the OpenMax library.])],
-                      AC_MSG_ERROR($openmax_not_found))
-  else
-    AC_MSG_NOTICE($openmax_disabled)
-    use_openmax=no
-    USE_OPENMAX=0
-  fi
+  AC_CHECK_HEADERS([OMX_Core.h],
+                    USE_OPENMAX=1;[INCLUDES="$INCLUDES $OPENMAX_CFLAGS"; LIBS="$LIBS $OPENMAX_LIBS";AC_DEFINE([HAVE_LIBOPENMAX], [1], [Define to 1 if you have the OpenMax library.])],
+                    use_openmax=no;USE_OPENMAX=0;AC_MSG_RESULT($openmax_not_found))
+elif test "$use_gles" = "yes" && test "$use_openmax" = "yes"; then
+  AC_CHECK_HEADERS([OMX_Core.h],
+                    USE_OPENMAX=1;[INCLUDES="$INCLUDES $OPENMAX_CFLAGS"; LIBS="$LIBS $OPENMAX_LIBS";AC_DEFINE([HAVE_LIBOPENMAX], [1], [Define to 1 if you have the OpenMax library.])],
+                    AC_MSG_ERROR($openmax_not_found))
+else
+  AC_MSG_NOTICE($openmax_disabled)
+  use_openmax=no
+  USE_OPENMAX=0
 fi
 
 # additional internal players
@@ -2117,14 +2106,6 @@ else
   final_message="$final_message\n  Joystick:\tNo"
 fi
 
-if test "$use_xrandr" = "yes"; then
-  final_message="$final_message\n  XRandR:\tYes"
-  USE_XRANDR=1
-else
-  final_message="$final_message\n  XRandR:\tNo"
-  USE_XRANDR=0
-fi
-
 if test "$use_waveform" = "yes"; then
   final_message="$final_message\n  Waveform:\tYes"
 else
@@ -2294,6 +2275,21 @@ else
   final_message="$final_message\n  Google Test Framework Configured:\tNo"
   GTEST_CONFIGURED=0
   SKIP_CONFIG_GTEST=1
+fi
+
+# Google Breakpad
+if test "$use_breakpad" = "yes"; then
+  USE_BREAKPAD=1
+  PKG_CHECK_MODULES([BREAKPAD],    [breakpad-client],
+    [INCLUDES="$INCLUDES $BREAKPAD_CFLAGS"; LIBS="$LIBS $BREAKPAD_LIBS"],
+    AC_MSG_ERROR("breakpad-client not found"))
+  AC_DEFINE([HAVE_BREAKPAD],[1],["Define to 1 if Google Breakpad is installed"])
+  AC_MSG_NOTICE($breakpad_enabled)
+  final_message="$final_message\n  Google Breakpad Configured:\tYes"
+else
+  AC_MSG_NOTICE($breakpad_disabled)
+  final_message="$final_message\n  Google Breakpad Configured:\tNo"
+  USE_BREAKPAD=0
 fi
 
 if test "$use_avahi" = "yes"; then
@@ -2479,11 +2475,8 @@ OUTPUT_FILES="Makefile \
     xbmc/input/linux/Makefile \
     xbmc/interfaces/Makefile \
     xbmc/network/Makefile \
-    xbmc/network/httprequesthandler/python/Makefile \
     xbmc/network/upnp/Makefile \
-    lib/libRTV/Makefile \
     lib/libexif/Makefile \
-    lib/libXDAAP/Makefile \
     lib/libhdhomerun/Makefile \
     lib/cximage-6.0/Makefile \
     lib/libUPnP/Makefile \
@@ -2535,8 +2528,14 @@ OUTPUT_FILES="Makefile \
     tools/android/packaging/xbmc/src/org/xbmc/kodi/Main.java \
     tools/android/packaging/xbmc/src/org/xbmc/kodi/XBMCBroadcastReceiver.java \
     tools/android/packaging/xbmc/src/org/xbmc/kodi/XBMCOnFrameAvailableListener.java \
+    tools/android/packaging/xbmc/src/org/xbmc/kodi/XBMCSettingsContentObserver.java \
+    tools/android/packaging/xbmc/src/org/xbmc/kodi/XBMCOnAudioFocusChangeListener.java \
     tools/android/packaging/xbmc/strings.xml \
     addons/xbmc.addon/addon.xml"
+
+if test "$use_webserver" = "yes"; then
+OUTPUT_FILES="$OUTPUT_FILES xbmc/network/httprequesthandler/python/Makefile"
+fi
 
 if test "$use_wayland" = "yes"; then
 OUTPUT_FILES="$OUTPUT_FILES xbmc/windowing/tests/wayland/Makefile"
@@ -2557,6 +2556,22 @@ fi
 OUTPUT_FILES="$OUTPUT_FILES \
   xbmc/interfaces/python/Makefile \
   xbmc/interfaces/python/test/Makefile"
+
+# needed for kodi-config.cmake
+if echo "$libdir" | grep -q '${exec_prefix}'; then
+  if test "${prefix}" = "NONE" || test "${prefix}" = ""; then
+    prefix="/usr/local"
+  fi
+  if test "${exec_prefix}" = "NONE" || test "${exec_prefix}" = ""; then
+    exec_prefix=${prefix}
+  fi
+fi
+eval "APP_PREFIX=${prefix}"
+eval "APP_LIB_DIR=${libdir}/${APP_NAME_LC}"
+eval "APP_INCLUDE_DIR=${includedir}/${APP_NAME_LC}"
+AC_SUBST(APP_PREFIX)
+AC_SUBST(APP_LIB_DIR)
+AC_SUBST(APP_INCLUDE_DIR)
 
 # Line below is used so we can use AM_INIT_AUTOMAKE. The corresponding
 # .dummy.am does nothing.
@@ -2609,7 +2624,6 @@ AC_SUBST(USE_AIRPLAY)
 AC_SUBST(USE_OPENMAX)
 AC_SUBST(USE_PULSE)
 AC_SUBST(HAVE_LIBPULSE)
-AC_SUBST(USE_XRANDR)
 AC_SUBST(USE_ALSA)
 AC_SUBST(USE_TEXTUREPACKER)
 AC_SUBST(TEXTUREPACKER)
@@ -2630,6 +2644,7 @@ AC_SUBST(UPNP_DEFINES)
 AC_SUBST(USE_SSE4)
 AC_SUBST(USE_MMAL)
 AC_SUBST(USE_X11)
+AC_SUBST(USE_BREAKPAD)
 
 # pushd and popd are not available in other shells besides bash, so implement
 # our own pushd/popd functions

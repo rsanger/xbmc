@@ -23,11 +23,8 @@
 #include "Application.h"
 #include "ApplicationMessenger.h"
 #include "input/Key.h"
-#include "guilib/GUIWindow.h"
 #include "guilib/LocalizeStrings.h"
-#include "guilib/GUIWindowManager.h"
 #include "dialogs/GUIDialogNumeric.h"
-#include "dialogs/GUIDialogKaiToast.h"
 #include "settings/AdvancedSettings.h"
 #include "settings/Settings.h"
 #include "utils/log.h"
@@ -95,7 +92,7 @@ bool CPVRActionListener::OnAction(const CAction &action)
           CPVRChannelPtr playingChannel(g_PVRManager.GetCurrentChannel());
           if(!playingChannel)
             return false;
-          
+
           if (action.GetID() == REMOTE_0)
           {
             CPVRChannelGroupPtr group = g_PVRChannelGroups->GetPreviousPlayedGroup();
@@ -123,7 +120,7 @@ bool CPVRActionListener::OnAction(const CAction &action)
                 CFileItemPtr channel = selectedGroup->GetByChannelNumber(iChannelNumber);
                 if (!channel || !channel->HasPVRChannelInfoTag())
                   return false;
-                
+
                 CApplicationMessenger::Get().SendAction(CAction(ACTION_CHANNEL_SWITCH, (float)iChannelNumber), WINDOW_INVALID, false);
               }
             }
@@ -136,7 +133,7 @@ bool CPVRActionListener::OnAction(const CAction &action)
           std::string strChannel = StringUtils::Format("%i", action.GetID() - REMOTE_0);
           if (CGUIDialogNumeric::ShowAndGetNumber(strChannel, g_localizeStrings.Get(19000)))
             iChannelNumber = atoi(strChannel.c_str());
-          
+
           if (iChannelNumber > 0)
             CApplicationMessenger::Get().SendAction(CAction(ACTION_CHANNEL_SWITCH, (float)iChannelNumber), WINDOW_INVALID, false);
         }
@@ -145,6 +142,6 @@ bool CPVRActionListener::OnAction(const CAction &action)
     }
     break;
   }
-  
+
   return false;
 }

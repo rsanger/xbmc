@@ -21,7 +21,6 @@
 #include "FileItem.h"
 #include "guilib/LocalizeStrings.h"
 #include "utils/log.h"
-#include "Util.h"
 #include "filesystem/File.h"
 #include "utils/StringUtils.h"
 #include "threads/SingleLock.h"
@@ -121,7 +120,7 @@ void CPVRChannel::Serialize(CVariant& value) const
   value["lastplayed"] = lastPlayed.IsValid() ? lastPlayed.GetAsDBDate() : "";
   value["channelnumber"] = m_iCachedChannelNumber;
   value["subchannelnumber"] = m_iCachedSubChannelNumber;
-  
+
   CEpgInfoTagPtr epg(GetEPGNow());
   if (epg)
   {
@@ -319,7 +318,7 @@ bool CPVRChannel::SetIconPath(const std::string &strIconPath, bool bIsUserSetIco
     SetChanged();
     m_bChanged = true;
     m_bIsUserSetIcon = bIsUserSetIcon && !m_strIconPath.empty();
-	  
+
     return true;
   }
 
@@ -338,15 +337,15 @@ bool CPVRChannel::SetChannelName(const std::string &strChannelName, bool bIsUser
   {
     m_strChannelName = strName;
     m_bIsUserSetName = bIsUserSetName;
-    
-    /* if the user changes the name manually to an empty string we reset the 
+
+    /* if the user changes the name manually to an empty string we reset the
        flag and use the name from the client instead */
     if (bIsUserSetName && strChannelName.empty())
     {
       m_bIsUserSetName = false;
       m_strChannelName = ClientChannelName();
     }
-    
+
     SetChanged();
     m_bChanged = true;
 

@@ -95,6 +95,10 @@ namespace PVR
 
     static CPVRTimerInfoTagPtr CreateFromEpg(const EPG::CEpgInfoTagPtr &tag);
     EPG::CEpgInfoTagPtr GetEpgInfoTag(void) const;
+    /*!
+     * @return True if this timer has a corresponding epg info tag, false otherwise
+     */
+    bool HasEpgInfoTag() const;
 
     int ChannelNumber(void) const;
     std::string ChannelName(void) const;
@@ -105,9 +109,9 @@ namespace PVR
 
     void UpdateEpgEvent(bool bClear = false);
 
-    bool IsActive(void) const 
-    { 	
-      return m_state == PVR_TIMER_STATE_SCHEDULED 
+    bool IsActive(void) const
+    {
+      return m_state == PVR_TIMER_STATE_SCHEDULED
         || m_state == PVR_TIMER_STATE_RECORDING
         || m_state == PVR_TIMER_STATE_CONFLICT_OK
         || m_state == PVR_TIMER_STATE_CONFLICT_NOK
@@ -149,6 +153,11 @@ namespace PVR
      * @param strText The notification.
      */
     void GetNotificationText(std::string &strText) const;
+
+    /*!
+    * @brief Get the text for the notification when a timer has been deleted
+    */
+    std::string GetDeletedNotificationText() const;
 
     const std::string& Title(void) const;
     const std::string& Summary(void) const;

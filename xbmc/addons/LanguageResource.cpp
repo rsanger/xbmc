@@ -108,15 +108,10 @@ bool CLanguageResource::IsInUse() const
   return StringUtils::EqualsNoCase(CSettings::Get().GetString(LANGUAGE_SETTING), ID());
 }
 
-bool CLanguageResource::OnPreInstall()
+void CLanguageResource::OnPostInstall(bool update, bool modal)
 {
-  return IsInUse();
-}
-
-void CLanguageResource::OnPostInstall(bool restart, bool update, bool modal)
-{
-  if (restart ||
-     (!update && !modal && CGUIDialogYesNo::ShowAndGetInput(Name(), g_localizeStrings.Get(24132), "", "")))
+  if (IsInUse() ||
+     (!update && !modal && CGUIDialogYesNo::ShowAndGetInput(Name(), 24132)))
   {
     CGUIDialogKaiToast *toast = (CGUIDialogKaiToast *)g_windowManager.GetWindow(WINDOW_DIALOG_KAI_TOAST);
     if (toast)

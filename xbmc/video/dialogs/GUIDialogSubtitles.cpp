@@ -28,14 +28,11 @@
 #include "dialogs/GUIDialogKaiToast.h"
 #include "filesystem/AddonsDirectory.h"
 #include "filesystem/File.h"
-#include "filesystem/PluginDirectory.h"
 #include "filesystem/SpecialProtocol.h"
 #include "filesystem/StackDirectory.h"
 #include "guilib/GUIKeyboardFactory.h"
 #include "input/Key.h"
-#include "settings/MediaSettings.h"
 #include "settings/Settings.h"
-#include "settings/VideoSettings.h"
 #include "settings/lib/Setting.h"
 #include "utils/JobManager.h"
 #include "utils/LangCodeExpander.h"
@@ -45,6 +42,7 @@
 #include "URL.h"
 #include "Util.h"
 #include "video/VideoDatabase.h"
+#include "filesystem/Directory.h"
 
 using namespace ADDON;
 using namespace XFILE;
@@ -597,13 +595,6 @@ void CGUIDialogSubtitles::SetSubtitles(const std::string &subtitle)
 {
   if (g_application.m_pPlayer)
   {
-    int nStream = g_application.m_pPlayer->AddSubtitle(subtitle);
-    if(nStream >= 0)
-    {
-      g_application.m_pPlayer->SetSubtitle(nStream);
-      g_application.m_pPlayer->SetSubtitleVisible(true);
-      CMediaSettings::Get().GetCurrentVideoSettings().m_SubtitleDelay = CMediaSettings::Get().GetDefaultVideoSettings().m_SubtitleDelay;
-      g_application.m_pPlayer->SetSubTitleDelay(CMediaSettings::Get().GetCurrentVideoSettings().m_SubtitleDelay);
-    }
+    g_application.m_pPlayer->AddSubtitle(subtitle);
   }
 }

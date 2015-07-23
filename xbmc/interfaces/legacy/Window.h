@@ -19,23 +19,23 @@
  */
 
 #pragma once
-
 #include <limits.h>
 
-#include "WindowException.h"
 #include "AddonCallback.h"
-#include "Exception.h"
 #include "Control.h"
 #include "AddonString.h"
 
 #include "swighelper.h"
 
-#include "guilib/GUIWindow.h"
-
 namespace XBMCAddon
 {
   namespace xbmcgui
   {
+    enum RenderOrder {
+      WINDOW = 0,
+      DIALOG = 1
+    };
+
     // Forward declare the interceptor as the AddonWindowInterceptor.h 
     // file needs to include the Window class because of the template
     class InterceptorBase;
@@ -150,7 +150,7 @@ namespace XBMCAddon
       /**
        * Child classes MUST call this in their constructors. It should
        *  be an instance of Interceptor<P extends CGUIWindow>. Control
-       *  of memory managment for this class is then given to the
+       *  of memory management for this class is then given to the
        *  Window
        */
       void setWindow(InterceptorBase* _window);
@@ -197,7 +197,7 @@ namespace XBMCAddon
       /**
        * onAction(self, Action action) -- onAction method.
        * 
-       * This method will recieve all actions that the main program will send
+       * This method will receive all actions that the main program will send
        * to this window.
        *
        * Notes: 
@@ -212,7 +212,7 @@ namespace XBMCAddon
       /**
        * onControl(self, Control control) -- onClick method.
        * 
-       * This method will recieve all click events on owned and selected controls when\n
+       * This method will receive all click events on owned and selected controls when\n
        * the control itself doesn't handle the message.
        */
       virtual void onControl(Control* control);
@@ -220,7 +220,7 @@ namespace XBMCAddon
       /**
        * onClick(self, int controlId) -- onClick method.
        * 
-       * This method will recieve all click events that the main program will send\n
+       * This method will receive all click events that the main program will send\n
        * to this window.
        */
       virtual void onClick(int controlId);
@@ -228,7 +228,7 @@ namespace XBMCAddon
       /**
        * onDoubleClick(self, int controlId) -- onClick method.
        * 
-       * This method will recieve all double click events that the main program will send\n
+       * This method will receive all double click events that the main program will send\n
        * to this window.
        */
       virtual void onDoubleClick(int controlId);
@@ -236,7 +236,7 @@ namespace XBMCAddon
       /**
        * onFocus(self, int controlId) -- onFocus method.
        * 
-       * This method will recieve all focus events that the main program will send\n
+       * This method will receive all focus events that the main program will send\n
        * to this window.
        */
       virtual void onFocus(int controlId);
@@ -465,7 +465,7 @@ namespace XBMCAddon
       SWIGHIDDENVIRTUAL void addControls(std::vector<Control*> pControls);
 
       /**
-       * getControl(self, int controlId) -- Get's the control from this window.
+       * getControl(self, int controlId) -- Gets the control from this window.
        * 
        * Throws: Exception, if Control doesn't exist
        * 

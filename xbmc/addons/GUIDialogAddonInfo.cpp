@@ -25,7 +25,6 @@
 #include "AddonDatabase.h"
 #include "FileItem.h"
 #include "filesystem/Directory.h"
-#include "filesystem/SpecialProtocol.h"
 #include "GUIDialogAddonSettings.h"
 #include "dialogs/GUIDialogContextMenu.h"
 #include "dialogs/GUIDialogTextViewer.h"
@@ -38,7 +37,6 @@
 #include "utils/URIUtils.h"
 #include "utils/log.h"
 #include "addons/AddonInstaller.h"
-#include "pvr/PVRManager.h"
 #include "Util.h"
 #include "interfaces/Builtins.h"
 
@@ -194,8 +192,8 @@ void CGUIDialogAddonInfo::OnLaunch()
   if (!m_localAddon)
     return;
 
-  CBuiltins::Execute("RunAddon(" + m_localAddon->ID() + ")");
   Close();
+  CBuiltins::Execute("RunAddon(" + m_localAddon->ID() + ")");
 }
 
 bool CGUIDialogAddonInfo::PromptIfDependency(int heading, int line2)
@@ -237,15 +235,11 @@ void CGUIDialogAddonInfo::OnUninstall()
     return;
 
   // prompt user to be sure
-  if (!CGUIDialogYesNo::ShowAndGetInput(24037, 750, 0, 0))
+  if (!CGUIDialogYesNo::ShowAndGetInput(24037, 750))
     return;
-
-  // ensure the addon isn't disabled in our database
-  CAddonMgr::Get().DisableAddon(m_localAddon->ID(), false);
 
   CJobManager::GetInstance().AddJob(new CAddonUnInstallJob(m_localAddon),
                                     &CAddonInstaller::Get());
-  CAddonMgr::Get().RemoveAddon(m_localAddon->ID());
   Close();
 }
 
@@ -260,7 +254,10 @@ void CGUIDialogAddonInfo::OnEnable(bool enable)
   if (!enable && PromptIfDependency(24075, 24091))
     return;
 
-  CAddonMgr::Get().DisableAddon(m_localAddon->ID(), !enable);
+  if (enable)
+    CAddonMgr::Get().EnableAddon(m_localAddon->ID());
+  else
+    CAddonMgr::Get().DisableAddon(m_localAddon->ID());
   SetItem(m_item);
   UpdateControls();
   g_windowManager.SendMessage(GUI_MSG_NOTIFY_ALL, 0, 0, GUI_MSG_UPDATE);
@@ -332,10 +329,12 @@ void CGUIDialogAddonInfo::OnRollback()
       database.BlacklistAddon(m_localAddon->ID(),m_rollbackVersions[j]);
     std::string path = "special://home/addons/packages/";
     path += m_localAddon->ID()+"-"+m_rollbackVersions[choice]+".zip";
+
+    //FIXME: this is probably broken
     // needed as cpluff won't downgrade
     if (!m_localAddon->IsType(ADDON_SERVICE))
       //we will handle this for service addons in CAddonInstallJob::OnPostInstall
-      CAddonMgr::Get().RemoveAddon(m_localAddon->ID());
+      CAddonMgr::Get().UnregisterAddon(m_localAddon->ID());
     CAddonInstaller::Get().InstallFromZip(path);
     database.RemoveAddonFromBlacklist(m_localAddon->ID(),m_rollbackVersions[choice]);
     Close();

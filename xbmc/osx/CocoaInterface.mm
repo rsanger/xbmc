@@ -24,6 +24,7 @@
 #define BOOL XBMC_BOOL 
 #include "utils/log.h"
 #include "CompileInfo.h"
+#include "windowing/WindowingFactory.h"
 #undef BOOL
 
 #import <Cocoa/Cocoa.h>
@@ -51,12 +52,17 @@ static CVDisplayLinkRef displayLink = NULL;
 
 CGDirectDisplayID Cocoa_GetDisplayIDFromScreen(NSScreen *screen);
 
+NSOpenGLContext* Cocoa_GL_GetCurrentContext(void)
+{
+  return (NSOpenGLContext *)g_Windowing.GetNSOpenGLContext();
+}
+
 uint32_t Cocoa_GL_GetCurrentDisplayID(void)
 {
   // Find which display we are on from the current context (default to main display)
   CGDirectDisplayID display_id = kCGDirectMainDisplay;
   
-  NSOpenGLContext* context = [NSOpenGLContext currentContext];
+  NSOpenGLContext* context = Cocoa_GL_GetCurrentContext();
   if (context)
   {
     NSView* view;
@@ -437,7 +443,7 @@ NSWindow* mainWindow = nil;
 
 void Cocoa_MakeChildWindow()
 {
-  NSOpenGLContext* context = [NSOpenGLContext currentContext];
+  NSOpenGLContext* context = Cocoa_GL_GetCurrentContext();
   NSView* view = [context view];
   NSWindow* window = [view window];
 

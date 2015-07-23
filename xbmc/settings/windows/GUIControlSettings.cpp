@@ -31,6 +31,7 @@
 #include "dialogs/GUIDialogSlider.h"
 #include "guilib/GUIEditControl.h"
 #include "guilib/GUIImage.h"
+#include "guilib/GUILabelControl.h"
 #include "guilib/GUIRadioButtonControl.h"
 #include "guilib/GUISettingsSliderControl.h"
 #include "guilib/GUISpinControlEx.h"
@@ -39,7 +40,6 @@
 #include "settings/SettingAddon.h"
 #include "settings/SettingControl.h"
 #include "settings/SettingPath.h"
-#include "settings/Settings.h"
 #include "settings/SettingUtils.h"
 #include "settings/MediaSourceSettings.h"
 #include "settings/lib/Setting.h"
@@ -624,6 +624,14 @@ void CGUIControlButtonSetting::Update(bool updateDisplayOnly /* = false */)
           strText = g_localizeStrings.Get(231); // None
       }
     }
+    else if (m_pSetting->GetType() == SettingTypeAction &&
+             !static_cast<const CSettingControlButton*>(control)->HideValue())
+    {
+      // CSettingAction. 
+      // Note: This can be removed once all settings use a proper control & format combination.
+      // CSettingAction is strictly speaking not designed to have a label2, it does not even have a value.
+      strText = m_pButton->GetLabel2();
+    }
   }
   else if (controlType == "slider")
   {
@@ -1144,4 +1152,17 @@ CGUIControlSeparatorSetting::CGUIControlSeparatorSetting(CGUIImage *pImage, int 
 }
 
 CGUIControlSeparatorSetting::~CGUIControlSeparatorSetting()
+{ }
+
+CGUIControlGroupTitleSetting::CGUIControlGroupTitleSetting(CGUILabelControl *pLabel, int id)
+  : CGUIControlBaseSetting(id, NULL)
+{
+  m_pLabel = pLabel;
+  if (m_pLabel == NULL)
+    return;
+
+  m_pLabel->SetID(id);
+}
+
+CGUIControlGroupTitleSetting::~CGUIControlGroupTitleSetting()
 { }

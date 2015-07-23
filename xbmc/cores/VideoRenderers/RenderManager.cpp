@@ -23,13 +23,12 @@
   #include "system_gl.h"
 #endif
 #include "RenderManager.h"
+#include "RenderFlags.h"
 #include "threads/CriticalSection.h"
 #include "video/VideoReferenceClock.h"
 #include "utils/MathUtils.h"
-#include "threads/Atomics.h"
 #include "threads/SingleLock.h"
 #include "utils/log.h"
-#include "utils/TimeUtils.h"
 #include "utils/StringUtils.h"
 
 #include "Application.h"
@@ -129,11 +128,11 @@ CXBMCRenderManager::~CXBMCRenderManager()
   m_pRenderer = NULL;
 }
 
-void CXBMCRenderManager::GetVideoRect(CRect &source, CRect &dest)
+void CXBMCRenderManager::GetVideoRect(CRect &source, CRect &dest, CRect &view)
 {
   CSharedLock lock(m_sharedSection);
   if (m_pRenderer)
-    m_pRenderer->GetVideoRect(source, dest);
+    m_pRenderer->GetVideoRect(source, dest, view);
 }
 
 float CXBMCRenderManager::GetAspectRatio()
@@ -172,6 +171,15 @@ void CXBMCRenderManager::WaitPresentTime(double presenttime)
   {
     /* smooth video not enabled */
     CDVDClock::WaitAbsoluteClock(presenttime * DVD_TIME_BASE);
+    return;
+  }
+
+  CDVDClock *dvdclock = CDVDClock::GetMasterClock();
+  if(dvdclock != NULL && dvdclock->GetSpeedAdjust() != 0.0)
+  {
+    CDVDClock::WaitAbsoluteClock(presenttime * DVD_TIME_BASE);
+    m_presenterr = 0;
+    m_presentcorr = 0;
     return;
   }
 
@@ -265,11 +273,13 @@ bool CXBMCRenderManager::Configure(unsigned int width, unsigned int height, unsi
     lock2.Enter();
     m_format = format;
 
-    int renderbuffers = m_pRenderer->GetOptimalBufferSize();
+    CRenderInfo info = m_pRenderer->GetRenderInfo();
+    int renderbuffers = info.optimal_buffer_size;
     m_QueueSize = renderbuffers;
     if (buffers > 0)
       m_QueueSize = std::min(buffers, renderbuffers);
-    m_QueueSize = std::min(m_QueueSize, (int)m_pRenderer->GetMaxBufferSize());
+
+    m_QueueSize = std::min(m_QueueSize, (int)info.max_buffer_size);
     m_QueueSize = std::min(m_QueueSize, NUM_BUFFERS);
     if(m_QueueSize < 2)
     {
@@ -810,6 +820,8 @@ void CXBMCRenderManager::Render(bool clear, DWORD flags, DWORD alpha, bool gui)
 
   if (gui)
   {
+    if (!m_pRenderer->IsGuiLayer())
+      m_pRenderer->Update();
     m_renderedOverlay = m_overlays.HasOverlay(m_presentsource);
     m_overlays.Render(m_presentsource);
   }
@@ -928,25 +940,17 @@ void CXBMCRenderManager::UpdateResolution()
   }
 }
 
-
-unsigned int CXBMCRenderManager::GetOptimalBufferSize()
+// Get renderer info, can be called before configure
+CRenderInfo CXBMCRenderManager::GetRenderInfo()
 {
   CSharedLock lock(m_sharedSection);
+  CRenderInfo info;
   if (!m_pRenderer)
   {
     CLog::Log(LOGERROR, "%s - renderer is NULL", __FUNCTION__);
-    return 0;
+    return CRenderInfo();
   }
-  return m_pRenderer->GetMaxBufferSize();
-}
-
-// Supported pixel formats, can be called before configure
-std::vector<ERenderFormat> CXBMCRenderManager::SupportedFormats()
-{
-  CSharedLock lock(m_sharedSection);
-  if (m_pRenderer)
-    return m_pRenderer->SupportedFormats();
-  return std::vector<ERenderFormat>();
+  return m_pRenderer->GetRenderInfo();
 }
 
 int CXBMCRenderManager::AddVideoPicture(DVDVideoPicture& pic)

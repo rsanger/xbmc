@@ -34,9 +34,6 @@ namespace EPG
 
 namespace PVR
 {
-#define PVR_INTERNAL_GROUP_ID_RADIO 1
-#define PVR_INTERNAL_GROUP_ID_TV    2
-
 #define PVR_GROUP_TYPE_DEFAULT      0
 #define PVR_GROUP_TYPE_INTERNAL     1
 #define PVR_GROUP_TYPE_USER_DEFINED 2
@@ -60,7 +57,7 @@ namespace PVR
     EPG_FIRST_DATE = 0,
     EPG_LAST_DATE = 1
   };
-  
+
   class CPVRChannelGroup;
   typedef std::shared_ptr<PVR::CPVRChannelGroup> CPVRChannelGroupPtr;
 
@@ -195,7 +192,7 @@ namespace PVR
      * @brief Check if this group is the internal group containing all channels.
      * @return True if it's the internal group, false otherwise.
      */
-    virtual bool IsInternalGroup(void) const { return false; }
+    virtual bool IsInternalGroup(void) const { return m_iGroupType == PVR_GROUP_TYPE_INTERNAL; }
 
     /*!
      * @brief True if this group holds radio channels, false if it holds TV channels.
@@ -412,13 +409,13 @@ namespace PVR
      * @return The amount of entries that were added.
      */
     int GetEPGNext(CFileItemList &results) const { return GetEPGNowOrNext(results, true); }
-    
+
     /*!
      * @brief Get the start time of the first entry.
      * @return The start time.
      */
     CDateTime GetFirstEPGDate(void) const;
-    
+
     /*!
      * @brief Get the end time of the last entry.
      * @return The end time.
@@ -448,6 +445,11 @@ namespace PVR
     void SetPosition(int iPosition);
 
   protected:
+    /*!
+     * @brief Init class
+     */
+    virtual void OnInit(void);
+
     /*!
      * @brief Load the channels stored in the database.
      * @param bCompress If true, compress the database after storing the channels.
@@ -538,7 +540,7 @@ namespace PVR
     PVR_CHANNEL_GROUP_SORTED_MEMBERS m_sortedMembers; /*!< members sorted by channel number */
     PVR_CHANNEL_GROUP_MEMBERS        m_members;       /*!< members with key clientid+uniqueid */
     CCriticalSection m_critSection;
-    
+
   private:
     CDateTime GetEPGDate(EpgDateType epgDateType) const;
     /*!

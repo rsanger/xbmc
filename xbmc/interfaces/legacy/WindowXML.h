@@ -24,12 +24,7 @@
 
 #include "Window.h"
 #include "windows/GUIMediaWindow.h"
-
-#include "threads/Thread.h"
-
 #include "swighelper.h"
-#include "FileItem.h"
-
 #include "WindowDialogMixin.h"
 
 namespace XBMCAddon
@@ -242,6 +237,8 @@ namespace XBMCAddon
       SWIGHIDDENVIRTUAL bool    IsMediaWindow() const { XBMC_TRACE; return false; };
       SWIGHIDDENVIRTUAL bool    OnAction(const CAction &action);
       SWIGHIDDENVIRTUAL void    OnDeinitWindow(int nextWindowID);
+
+      SWIGHIDDENVIRTUAL bool    LoadXML(const String &strPath, const String &strPathLower);
 
       SWIGHIDDENVIRTUAL inline void show() { XBMC_TRACE; WindowDialogMixin::show(); }
       SWIGHIDDENVIRTUAL inline void close() { XBMC_TRACE; WindowDialogMixin::close(); }

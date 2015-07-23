@@ -20,11 +20,9 @@
  */
 
 #include "PVRRecording.h"
-#include "XBDateTime.h"
-#include "threads/Thread.h"
 #include "utils/Observer.h"
-#include "video/VideoThumbLoader.h"
 #include "video/VideoDatabase.h"
+#include "FileItem.h"
 
 #define PVR_ALL_RECORDINGS_PATH_EXTENSION "-1"
 
@@ -77,7 +75,7 @@ namespace PVR
     int GetNumRecordings();
     bool HasDeletedRecordings();
     int GetRecordings(CFileItemList* results, bool bDeleted = false);
-    
+
     /**
      * Deletes the item in question, be it a directory or a file
      * @param item the item to delete

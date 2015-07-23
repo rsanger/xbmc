@@ -21,7 +21,6 @@
 #include <vector>
 
 #include "interfaces/legacy/AddonClass.h"
-#include "interfaces/legacy/swighelper.h"
 
 struct HTTPPythonRequest;
 
@@ -67,8 +66,6 @@ namespace XBMCAddon
 
       HTTPPythonRequest* m_request;
 #endif
-    };    
+    };
   }
 }
-
-

@@ -41,7 +41,6 @@
 #include "settings/MediaSourceSettings.h"
 #include "settings/Settings.h"
 #include "FileItem.h"
-#include "input/Key.h"
 #include "filesystem/AddonsDirectory.h"
 #include "guilib/TextureManager.h"
 
@@ -300,10 +299,6 @@ void CGUIViewState::AddSortMethod(SortDescription sortDescription, int buttonLab
 void CGUIViewState::SetCurrentSortMethod(int method)
 {
   SortBy sortBy = (SortBy)method;
-  SortAttribute sortAttributes = SortAttributeNone;
-  if (CSettings::Get().GetBool("filelists.ignorethewhensorting"))
-    sortAttributes = SortAttributeIgnoreArticle;
-
   if (sortBy < SortByNone || sortBy > SortByRandom)
     return; // invalid
 

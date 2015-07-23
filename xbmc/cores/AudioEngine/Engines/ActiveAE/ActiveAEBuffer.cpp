@@ -164,6 +164,7 @@ bool CActiveAEBufferPoolResample::Create(unsigned int totaltime, bool remap, boo
 {
   CActiveAEBufferPool::Create(totaltime);
 
+  m_remap = remap;
   m_stereoUpmix = upmix;
   m_normalize = true;
   if ((m_format.m_channelLayout.Count() < m_inputFormat.m_channelLayout.Count() && !normalize))
@@ -218,7 +219,7 @@ void CActiveAEBufferPoolResample::ChangeResampler()
                                 CAEUtil::DataFormatToDitherBits(m_inputFormat.m_dataFormat),
                                 m_stereoUpmix,
                                 m_normalize,
-                                NULL,
+                                m_remap ? &m_format.m_channelLayout : NULL,
                                 m_resampleQuality,
                                 m_forceResampler);
 
@@ -415,4 +416,6 @@ void CActiveAEBufferPoolResample::Flush()
     m_outputSamples.front()->Return();
     m_outputSamples.pop_front();
   }
+  if (m_resampler)
+    ChangeResampler();
 }

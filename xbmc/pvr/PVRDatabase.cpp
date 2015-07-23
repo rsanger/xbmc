@@ -21,7 +21,6 @@
 #include "PVRDatabase.h"
 #include "dbwrappers/dataset.h"
 #include "settings/AdvancedSettings.h"
-#include "settings/VideoSettings.h"
 #include "settings/Settings.h"
 #include "utils/log.h"
 #include "utils/StringUtils.h"
@@ -121,7 +120,7 @@ void CPVRDatabase::UpdateTables(int iVersion)
 
   if (iVersion < 24)
     m_pDS->exec("ALTER TABLE channels ADD bIsUserSetName bool");
-  
+
   if (iVersion < 25)
     m_pDS->exec("DROP TABLE IF EXISTS channelsettings");
 
@@ -229,7 +228,7 @@ int CPVRDatabase::Get(CPVRChannelGroupInternal &results)
       "map_channelgroups_channels.iChannelNumber, channels.idEpg "
       "FROM map_channelgroups_channels "
       "LEFT JOIN channels ON channels.idChannel = map_channelgroups_channels.idChannel "
-      "WHERE map_channelgroups_channels.idGroup = %u", results.IsRadio() ? PVR_INTERNAL_GROUP_ID_RADIO : PVR_INTERNAL_GROUP_ID_TV);
+      "WHERE map_channelgroups_channels.idGroup = %u", results.GroupID());
   if (ResultQuery(strQuery))
   {
     try

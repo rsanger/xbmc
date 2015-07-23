@@ -287,6 +287,7 @@ namespace INFO
 #define VIDEOPLAYER_CHANNEL_NUMBER_LBL 315
 #define VIDEOPLAYER_CAN_RESUME_LIVE_TV 316
 #define VIDEOPLAYER_IMDBNUMBER        317
+#define VIDEOPLAYER_EPISODENAME       318
 
 #define CONTAINER_CAN_FILTER         342
 #define CONTAINER_CAN_FILTERADVANCED 343
@@ -404,9 +405,11 @@ namespace INFO
 #define LIBRARY_HAS_MOVIE_SETS      723
 #define LIBRARY_HAS_TVSHOWS         724
 #define LIBRARY_HAS_MUSICVIDEOS     725
-#define LIBRARY_IS_SCANNING         726
-#define LIBRARY_IS_SCANNING_VIDEO   727
-#define LIBRARY_IS_SCANNING_MUSIC   728
+#define LIBRARY_HAS_SINGLES         726
+#define LIBRARY_HAS_COMPILATIONS    727
+#define LIBRARY_IS_SCANNING         728
+#define LIBRARY_IS_SCANNING_VIDEO   729
+#define LIBRARY_IS_SCANNING_MUSIC   730
 
 #define SYSTEM_PLATFORM_LINUX       741
 #define SYSTEM_PLATFORM_WINDOWS     742
@@ -661,6 +664,7 @@ namespace INFO
 #define LISTITEM_CHANNEL_NUMBER_LBL (LISTITEM_START + 145)
 #define LISTITEM_IMDBNUMBER         (LISTITEM_START + 146)
 #define LISTITEM_EPISODENAME        (LISTITEM_START + 147)
+#define LISTITEM_IS_COLLECTION      (LISTITEM_START + 148)
 
 #define LISTITEM_PROPERTY_START     (LISTITEM_START + 200)
 #define LISTITEM_PROPERTY_END       (LISTITEM_PROPERTY_START + 1000)
@@ -799,6 +803,7 @@ public:
   std::string GetCurrentSeekTime(TIME_FORMAT format = TIME_FORMAT_GUESS) const;
   int GetPlayTimeRemaining() const;
   int GetTotalPlayTime() const;
+  float GetSeekPercent() const;
   std::string GetCurrentPlayTimeRemaining(TIME_FORMAT format) const;
   std::string GetVersionShort(void);
   std::string GetAppName();
@@ -807,14 +812,11 @@ public:
 
   bool GetDisplayAfterSeek();
   void SetDisplayAfterSeek(unsigned int timeOut = 2500, int seekOffset = 0);
-  void SetSeekStepSize(int seekStepSize) { m_seekStepSize = seekStepSize; };
-  void SetSeeking(bool seeking) { m_playerSeeking = seeking; };
   void SetShowTime(bool showtime) { m_playerShowTime = showtime; };
   void SetShowCodec(bool showcodec) { m_playerShowCodec = showcodec; };
   void SetShowInfo(bool showinfo) { m_playerShowInfo = showinfo; };
   void ToggleShowCodec() { m_playerShowCodec = !m_playerShowCodec; };
   bool ToggleShowInfo() { m_playerShowInfo = !m_playerShowInfo; return m_playerShowInfo; };
-  bool m_performingSeek;
 
   std::string GetSystemHeatInfo(int info);
   CTemperature GetGPUTemperature();
@@ -935,8 +937,6 @@ protected:
   //Fullscreen OSD Stuff
   unsigned int m_AfterSeekTimeout;
   int m_seekOffset;
-  int m_seekStepSize;
-  bool m_playerSeeking;
   bool m_playerShowTime;
   bool m_playerShowCodec;
   bool m_playerShowInfo;
@@ -958,6 +958,8 @@ protected:
   int m_libraryHasTVShows;
   int m_libraryHasMusicVideos;
   int m_libraryHasMovieSets;
+  int m_libraryHasSingles;
+  int m_libraryHasCompilations;
 
   SPlayerVideoStreamInfo m_videoInfo;
   SPlayerAudioStreamInfo m_audioInfo;

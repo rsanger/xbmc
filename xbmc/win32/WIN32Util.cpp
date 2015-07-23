@@ -34,13 +34,9 @@
 #include "guilib/LocalizeStrings.h"
 #include "utils/CharsetConverter.h"
 #include "utils/log.h"
-#include "DllPaths_win32.h"
-#include "FileSystem/File.h"
-#include "utils/URIUtils.h"
 #include "powermanagement\PowerManager.h"
 #include "utils/SystemInfo.h"
 #include "utils/Environment.h"
-#include "utils/URIUtils.h"
 #include "utils/StringUtils.h"
 #include "win32/crts_caller.h"
 
@@ -1520,7 +1516,8 @@ void CWIN32Util::CropSource(CRect& src, CRect& dst, CRect target)
 
 void CWinIdleTimer::StartZero()
 {
-  SetThreadExecutionState(ES_SYSTEM_REQUIRED|ES_DISPLAY_REQUIRED);
+  if (!g_application.IsDPMSActive())
+    SetThreadExecutionState(ES_SYSTEM_REQUIRED|ES_DISPLAY_REQUIRED);
   CStopWatch::StartZero();
 }
 

@@ -25,7 +25,6 @@
 #include "pvr/PVRManager.h"
 #include "pvr/channels/PVRChannel.h"
 #include "utils/log.h"
-#include "utils/StringUtils.h"
 #include "pvr/addons/PVRClients.h"
 #include "pvr/channels/PVRChannelGroupsContainer.h"
 #include "settings/Settings.h"
@@ -295,7 +294,7 @@ bool CDVDInputStreamPVRManager::SelectChannel(const CPVRChannelPtr &channel)
   return false;
 }
 
-CPVRChannelPtr CDVDInputStreamPVRManager::GetSelectedChannel() const
+CPVRChannelPtr CDVDInputStreamPVRManager::GetSelectedChannel()
 {
   return g_PVRManager.GetCurrentChannel();
 }

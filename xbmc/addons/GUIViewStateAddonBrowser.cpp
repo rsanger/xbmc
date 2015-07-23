@@ -26,9 +26,6 @@
 #include "view/ViewState.h"
 #include "addons/Addon.h"
 #include "addons/AddonManager.h"
-#include "addons/AddonInstaller.h"
-#include "AddonDatabase.h"
-#include "utils/StringUtils.h"
 
 using namespace XFILE;
 using namespace ADDON;
@@ -79,34 +76,6 @@ VECSOURCES& CGUIViewStateAddonBrowser::GetSources()
     share.strName = g_localizeStrings.Get(24043); // "Available updates"
     m_sources.push_back(share);
   }
-  {
-    CMediaSource share;
-    share.strPath = "addons://dependencies/";
-    share.m_iDriveType = CMediaSource::SOURCE_TYPE_LOCAL;
-    share.strName = g_localizeStrings.Get(24996);
-    m_sources.push_back(share);
-  }
-  {
-    CMediaSource share;
-    share.strPath = "addons://orphaned/";
-    share.m_iDriveType = CMediaSource::SOURCE_TYPE_LOCAL;
-    share.strName = g_localizeStrings.Get(24995);
-    m_sources.push_back(share);
-  }
-  {
-    CMediaSource share;
-    share.strPath = "addons://system/";
-    share.m_iDriveType = CMediaSource::SOURCE_TYPE_LOCAL;
-    share.strName = g_localizeStrings.Get(24997);
-    m_sources.push_back(share);
-  }
-  {
-    CMediaSource share;
-    share.strPath = "addons://running/";
-    share.m_iDriveType = CMediaSource::SOURCE_TYPE_LOCAL;
-    share.strName = g_localizeStrings.Get(24994);
-    m_sources.push_back(share);
-  }
   if (CAddonMgr::Get().HasAddons(ADDON_REPOSITORY, true))
   {
     CMediaSource share;
@@ -127,6 +96,13 @@ VECSOURCES& CGUIViewStateAddonBrowser::GetSources()
     share.strPath = "addons://search/";
     share.m_iDriveType = CMediaSource::SOURCE_TYPE_LOCAL;
     share.strName = g_localizeStrings.Get(137);
+    m_sources.push_back(share);
+  }
+  {
+    CMediaSource share;
+    share.strPath = "addons://manage/";
+    share.m_iDriveType = CMediaSource::SOURCE_TYPE_LOCAL;
+    share.strName = g_localizeStrings.Get(24992);
     m_sources.push_back(share);
   }
 

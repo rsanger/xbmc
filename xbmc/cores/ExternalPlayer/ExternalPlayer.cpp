@@ -20,8 +20,6 @@
 
 #include "threads/SystemClock.h"
 #include "system.h"
-#include "signal.h"
-#include "limits.h"
 #include "CompileInfo.h"
 #include "threads/SingleLock.h"
 #include "ExternalPlayer.h"
@@ -36,7 +34,6 @@
 #include "utils/URIUtils.h"
 #include "URL.h"
 #include "utils/XMLUtils.h"
-#include "utils/TimeUtils.h"
 #include "utils/log.h"
 #include "cores/AudioEngine/AEFactory.h"
 #include "input/InputManager.h"
@@ -484,14 +481,14 @@ BOOL CExternalPlayer::ExecuteAppAndroid(const char* strSwitches,const char* strP
 {
   CLog::Log(LOGNOTICE, "%s: %s", __FUNCTION__, strSwitches);
 
-  int ret = CXBMCApp::StartActivity(strSwitches, "android.intent.action.VIEW", "video/*", strPath);
+  bool ret = CXBMCApp::StartActivity(strSwitches, "android.intent.action.VIEW", "video/*", strPath);
 
-  if (ret != 0)
+  if (!ret)
   {
-    CLog::Log(LOGNOTICE, "%s: Failure: %d", __FUNCTION__, ret);
+    CLog::Log(LOGNOTICE, "%s: Failure", __FUNCTION__);
   }
 
-  return ret == 0;
+  return ret;
 }
 #endif
 

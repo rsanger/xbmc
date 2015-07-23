@@ -46,10 +46,6 @@
 #include "URL.h"
 #include "utils/StringUtils.h"
 
-#ifdef TARGET_WINDOWS
-#include "WIN32Util.h"
-#endif
-
 using namespace std;
 
 #define BACKGROUND_IMAGE       999
@@ -102,7 +98,8 @@ bool CGUIDialogContextMenu::OnMessage(CGUIMessage &message)
 
 bool CGUIDialogContextMenu::OnAction(const CAction& action)
 {
-  if (action.GetID() == ACTION_CONTEXT_MENU)
+  if (action.GetID() == ACTION_CONTEXT_MENU ||
+      action.GetID() == ACTION_SWITCH_PLAYER)
   {
     Close();
     return true;
@@ -373,7 +370,7 @@ bool CGUIDialogContextMenu::OnContextButton(const std::string &type, const CFile
         return false;
     }
     // prompt user if they want to really delete the source
-    if (!CGUIDialogYesNo::ShowAndGetInput(751, 0, 750, 0))
+    if (!CGUIDialogYesNo::ShowAndGetInput(751, 750))
       return false;
 
     // check default before we delete, as deletion will kill the share object
@@ -515,7 +512,7 @@ bool CGUIDialogContextMenu::OnContextButton(const std::string &type, const CFile
       if (!g_passwordManager.IsMasterLockUnlocked(true))
         return false;
 
-      if (!CGUIDialogYesNo::ShowAndGetInput(12335, 0, 750, 0))
+      if (!CGUIDialogYesNo::ShowAndGetInput(12335, 750))
         return false;
 
       share->m_iHasLock = 0;

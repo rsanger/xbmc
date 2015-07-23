@@ -31,7 +31,6 @@
 #include <locale.h>
 #include "guilib/MatrixGLES.h"
 #include "LinuxRendererGLES.h"
-#include "utils/fastmemcpy.h"
 #include "utils/MathUtils.h"
 #include "utils/GLUtils.h"
 #include "utils/log.h"
@@ -607,8 +606,36 @@ void CLinuxRendererGLES::RenderUpdateVideo(bool clear, DWORD flags, DWORD alpha)
     CDVDVideoCodecIMXBuffer *buffer = m_buffers[m_iYV12RenderBuffer].IMXBuffer;
     if (buffer != NULL && buffer->IsValid())
     {
+      // this hack is needed to get the 2D mode of a 3D movie going
+      RENDER_STEREO_MODE stereo_mode = g_graphicsContext.GetStereoMode();
+      if (stereo_mode)
+        g_graphicsContext.SetStereoView(RENDER_STEREO_VIEW_LEFT);
+
       ManageDisplay();
-      g_IMXContext.SetBlitRects(m_sourceRect, m_destRect);
+
+      if (stereo_mode)
+        g_graphicsContext.SetStereoView(RENDER_STEREO_VIEW_OFF);
+
+      CRect dstRect(m_destRect);
+      CRect srcRect(m_sourceRect);
+      switch (stereo_mode)
+      {
+        case RENDER_STEREO_MODE_SPLIT_HORIZONTAL:
+          dstRect.y2 *= 2.0;
+          srcRect.y2 *= 2.0;
+        break;
+
+        case RENDER_STEREO_MODE_SPLIT_VERTICAL:
+          dstRect.x2 *= 2.0;
+          srcRect.x2 *= 2.0;
+        break;
+
+        default:
+        break;
+      }
+
+      //CLog::Log(LOGDEBUG, "BLIT RECTS: source x1 %f x2 %f y1 %f y2 %f dest x1 %f x2 %f y1 %f y2 %f", srcRect.x1, srcRect.x2, srcRect.y1, srcRect.y2, dstRect.x1, dstRect.x2, dstRect.y1, dstRect.y2);
+      g_IMXContext.SetBlitRects(srcRect, dstRect);
 
       bool topFieldFirst = true;
 
@@ -2980,18 +3007,24 @@ EINTERLACEMETHOD CLinuxRendererGLES::AutoInterlaceMethod()
 #endif
 }
 
-unsigned int CLinuxRendererGLES::GetOptimalBufferSize()
+CRenderInfo CLinuxRendererGLES::GetRenderInfo()
 {
+  CRenderInfo info;
+  info.formats = m_formats;
+  info.max_buffer_size = NUM_BUFFERS;
   if(m_format == RENDER_FMT_OMXEGL ||
      m_format == RENDER_FMT_CVBREF ||
      m_format == RENDER_FMT_EGLIMG ||
      m_format == RENDER_FMT_MEDIACODEC)
-    return 2;
+    info.optimal_buffer_size = 2;
   else if(m_format == RENDER_FMT_IMXMAP)
+  {
     // Let the codec control the buffer size
-    return GetMaxBufferSize();
+    info.optimal_buffer_size = info.max_buffer_size;
+  }
   else
-    return 3;
+    info.optimal_buffer_size = 3;
+  return info;
 }
 
 #ifdef HAVE_LIBOPENMAX
