@@ -26,7 +26,9 @@ class CFileItemList;
 // can be used as a flag
 typedef enum {
   GroupByNone = 0x0,
-  GroupBySet  = 0x1
+  GroupBySet = 0x1,
+  GroupByMovie = 0x2,
+  GroupByEpisode = 0x4
 } GroupBy;
 
 typedef enum {

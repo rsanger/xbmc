@@ -42,6 +42,7 @@
 #include "utils/URIUtils.h"
 #include "video/VideoDatabase.h"
 #include "video/VideoInfoTag.h"
+#include "windows/GUIWindowVideoNav.h"
 
 using namespace XFILE;
 using namespace VIDEO;
@@ -265,12 +266,117 @@ bool CVideoThumbLoader::LoadItem(CFileItem* pItem)
 
   return result;
 }
+typedef std::shared_ptr<CFileItemList> CFileItemListPtr;
+bool CVideoThumbLoader::HandleMergedCFileList(CFileItemList *dir, bool cached) {
+  bool pickBest = true; // Pick the best item vs always asking
+  CStreamDetail::StreamType streamType;
+  enum GroupDuplicates groupby = GroupDuplicates::ALWAYS_ASK; // Default to ALWAYS_ASK if we are in a weird state
+  int itemsLoaded = 0;
+
+  if (dir->GetVideoContentType() == VIDEODB_CONTENT_EPISODES)
+    groupby = static_cast<enum GroupDuplicates>(CSettings::GetInstance().GetInt("videolibrary.groupepisodes"));
+  else if (dir->GetVideoContentType() == VIDEODB_CONTENT_MOVIES)
+    groupby = static_cast<enum GroupDuplicates>(CSettings::GetInstance().GetInt("videolibrary.groupmovies"));
+  else
+    CLog::Log(LOGWARNING, "Unexpected type for a grouped item. Defaulting to Always Ask.");
+
+  switch (groupby) {
+  case GroupDuplicates::BEST_VIDEO:
+    streamType = CStreamDetail::VIDEO;
+    break;
+  case GroupDuplicates::BEST_AUDIO:
+    streamType = CStreamDetail::AUDIO;
+    break;
+  case GroupDuplicates::BEST_SUBTITLE:
+    streamType = CStreamDetail::SUBTITLE;
+    break;
+  default:
+    pickBest = false;
+  }
+
+  bool success = true;
+  CFileItemPtr thebest = dir->Get(0);
+  for (auto i = 0; i < dir->Size(); i++) {
+    bool winning;
+    if (cached)
+      winning = LoadItemCached(dir->Get(i).get());
+    else
+      winning = LoadItemLookup(dir->Get(i).get());
+    success &= winning;
+    auto itemInfo = dir->Get(i).get()->GetVideoInfoTag();
+    itemInfo->m_streamDetails.DetermineBestStreams();
+
+    /* Auto select the best stream based on user preference */
+    if (itemInfo->HasStreamDetails())
+    {
+      itemsLoaded++;
+      if (pickBest) {
+        const CStreamDetail *stream = NULL, *beststream = NULL;
+        stream = itemInfo->m_streamDetails.GetNthStream(streamType, 0);
+        beststream = thebest->GetVideoInfoTag()->m_streamDetails.GetNthStream(streamType, 0);
+        if (stream && beststream) {
+          if (const_cast<CStreamDetail *>(beststream)->IsWorseThan(const_cast<CStreamDetail *>(stream)))
+            thebest = dir->Get(i);
+        }
+        else if (!beststream && stream) {
+          thebest = dir->Get(i);
+        }
+      } /* Otherwise show the best of all streams and let the user choose */
+      else {
+        /* Copy across the best of each stream type from each item and display the overall best for each */
+        const CStreamDetailVideo* videoStream = dynamic_cast<const CStreamDetailVideo*>(itemInfo->m_streamDetails.GetNthStream(CStreamDetail::VIDEO, 0));
+        if (videoStream) {
+          CStreamDetailVideo *tmp = new CStreamDetailVideo(*videoStream);
+          if (tmp)
+            dir->GetVideoInfoTag()->m_streamDetails.AddStream(tmp);
+        }
+
+        const CStreamDetailAudio* audioStream = dynamic_cast<const CStreamDetailAudio*>(itemInfo->m_streamDetails.GetNthStream(CStreamDetail::AUDIO, 0));
+        if (audioStream) {
+          CStreamDetailAudio *tmp = new CStreamDetailAudio(*audioStream);
+          if (tmp)
+            dir->GetVideoInfoTag()->m_streamDetails.AddStream(tmp);
+        }
+
+        const CStreamDetailSubtitle* subtitleStream = dynamic_cast<const CStreamDetailSubtitle*>(itemInfo->m_streamDetails.GetNthStream(CStreamDetail::SUBTITLE, 0));
+        if (subtitleStream) {
+          CStreamDetailSubtitle *tmp = new CStreamDetailSubtitle(*subtitleStream);
+          if (tmp)
+            dir->GetVideoInfoTag()->m_streamDetails.AddStream(tmp);
+        }
+      }
+    }
+  }
+
+  /* If everything that is going to load has, update this item */
+  if (itemsLoaded == dir->Size() || !cached) {
+    if (pickBest) {
+      /* Become a file with, meaning play from etc can be used */
+      /* Cache the label this is already formated and we don't want to change that */
+      std::string tmp = dir->GetLabel();
+      if (thebest.get()) {
+        dir->SetFromVideoInfoTag(*thebest->GetVideoInfoTag());
+      }
+      dir->SetLabel(tmp);
+    }
+    else {
+      /* Show the best of each stream type, and remain as a directory */
+      dir->GetVideoInfoTag()->m_streamDetails.DetermineBestStreams();
+    }
+  }
+
+  return success;
+}
 
 bool CVideoThumbLoader::LoadItemCached(CFileItem* pItem)
 {
   if (pItem->m_bIsShareOrDrive
   ||  pItem->IsParentFolder())
     return false;
+
+  if (typeid(*pItem) == typeid(CFileItemList)) {
+    HandleMergedCFileList(dynamic_cast<CFileItemList *>(pItem), true);
+  }
 
   m_videoDatabase->Open();
 
@@ -334,6 +440,10 @@ bool CVideoThumbLoader::LoadItemLookup(CFileItem* pItem)
       pItem->GetVideoInfoTag()->m_type != MediaTypeEpisode    &&
       pItem->GetVideoInfoTag()->m_type != MediaTypeMusicVideo)
     return false; // Nothing to do here
+
+  if (typeid(*pItem) == typeid(CFileItemList)) {
+    HandleMergedCFileList(dynamic_cast<CFileItemList *>(pItem), false);
+  }
 
   DetectAndAddMissingItemData(*pItem);
 

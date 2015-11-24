@@ -903,7 +903,11 @@ void CGUIWindowVideoNav::GetContextButtons(int itemNumber, CContextButtons &butt
       GetScraperForItem(item.get(), info, settings);
 
       if (info && info->Content() == CONTENT_TVSHOWS)
-        buttons.Add(CONTEXT_BUTTON_INFO, item->m_bIsFolder ? 20351 : 20352);
+        /* Ensure merged episodes appear as episodes not tv shows directories */
+        if (typeid(*item) == typeid(CFileItemList)) 
+          buttons.Add(CONTEXT_BUTTON_INFO, 20352);
+        else
+          buttons.Add(CONTEXT_BUTTON_INFO, item->m_bIsFolder ? 20351 : 20352);
       else if (info && info->Content() == CONTENT_MUSICVIDEOS)
         buttons.Add(CONTEXT_BUTTON_INFO,20393);
       else if (info && info->Content() == CONTENT_MOVIES)

@@ -1843,8 +1843,8 @@ bool CFileItemList::Copy(const CFileItemList& items, bool copyItems /* = true */
     // make a copy of each item
     for (int i = 0; i < items.Size(); i++)
     {
-      CFileItemPtr newItem(new CFileItem(*items[i]));
-      Add(newItem);
+      /* XXX UNDO THIS CHANGE WE NO LONGER COPY HERE */
+      Add(items[i]);
     }
   }
 
@@ -2057,6 +2057,8 @@ void CFileItemList::Archive(CArchive& ar)
     for (; i < (int)m_items.size(); ++i)
     {
       CFileItemPtr pItem = m_items[i];
+      /* Note the type of item so we recreate the correct type */
+      ar << typeid(*pItem).hash_code();
       ar << *pItem;
     }
   }
@@ -2126,9 +2128,25 @@ void CFileItemList::Archive(CArchive& ar)
 
     for (int i = 0; i < iSize; ++i)
     {
-      CFileItemPtr pItem(new CFileItem);
-      ar >> *pItem;
-      Add(pItem);
+      size_t type;
+      ar >> type;
+      /* Expand the correct subclass */
+      if(type == typeid(CFileItem).hash_code())
+      {
+        CFileItemPtr pItem(new CFileItem);
+        ar >> *pItem;
+        Add(pItem);
+      }
+      else if (type == typeid(CFileItemList).hash_code())
+      {
+        typedef std::shared_ptr<CFileItemList> CFileItemListPtr;
+        CFileItemListPtr pItem(new CFileItemList);
+        ar >> *pItem;
+        Add(pItem);
+      }
+      else {
+        CLog::Log(LOGERROR, "Cannot unarchive a CFileItem derivative, ignoring.");
+      }
     }
 
     SetFastLookup(fastLookup);

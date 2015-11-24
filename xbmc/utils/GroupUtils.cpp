@@ -31,6 +31,70 @@
 #include "video/VideoInfoTag.h"
 
 using SetMap = std::map<int, std::set<CFileItemPtr> >;
+using MovieMap = std::map<std::string, std::set<CFileItemPtr> >;
+using EpisodeMap = std::map<std::string, std::set<CFileItemPtr> >;
+
+using CFileItemListPtr = std::shared_ptr<CFileItemList>;
+
+static void combine_entries(CFileItemListPtr &grouped, MovieMap::const_iterator &set) {
+  
+  CVideoInfoTag* groupInfo = grouped.get()->GetVideoInfoTag();
+
+  int ratings = 0;
+
+  groupInfo->m_playCount = 0;
+  groupInfo->m_fRating = 0.0f;
+
+  for (std::set<CFileItemPtr>::const_iterator item = set->second.begin(); item != set->second.end(); item++)
+  {
+    grouped->Add(*item);
+    CVideoInfoTag* itemInfo = (*item)->GetVideoInfoTag();
+
+    itemInfo->m_type = MediaTypeVideoCollection;
+    // handle rating
+    if (itemInfo->m_fRating > 0.0f)
+    {
+      ratings++;
+      groupInfo->m_fRating += itemInfo->m_fRating;
+    }
+
+    // handle lastplayed
+    if (itemInfo->m_lastPlayed.IsValid() && itemInfo->m_lastPlayed > groupInfo->m_lastPlayed)
+      groupInfo->m_lastPlayed = itemInfo->m_lastPlayed;
+
+    // handle dateadded
+    if (itemInfo->m_dateAdded.IsValid() && itemInfo->m_dateAdded > groupInfo->m_dateAdded)
+      groupInfo->m_dateAdded = itemInfo->m_dateAdded;
+
+    // handle playcount/watched
+    groupInfo->m_playCount += itemInfo->m_playCount;
+  }
+
+  if (ratings > 1)
+    groupInfo->m_fRating /= ratings;
+
+  /* TODO what makes sense here? */
+  grouped->SetProperty("total", (int)set->second.size());
+  grouped->SetProperty("watched", groupInfo->m_playCount);
+  grouped->SetProperty("unwatched", (int)set->second.size() /*- iWatched*/);
+  grouped->SetOverlayImage(CGUIListItem::ICON_OVERLAY_UNWATCHED, groupInfo->m_playCount > 0);
+  grouped->m_bIsFolder = true;
+
+  /* XXX add this in properly TODO */
+  if (grouped->GetProperty("contextmenulabel(0)").isNull()) {
+    grouped->SetProperty("contextmenulabel(0)", "List All Duplicates");
+    grouped->SetProperty("contextmenuaction(0)", "ActivateWindow(Videos, " + grouped->GetPath() + ")");
+  }
+
+#if 0
+  grouped->SetLabel("Loading Duplicates...");
+  grouped->GetVideoInfoTag()->m_strTitle = "Loading Duplicates...";
+  if (set->second.begin()->get()->GetVideoInfoTag()->m_strSortTitle.empty())
+    grouped->GetVideoInfoTag()->m_strSortTitle = set->second.begin()->get()->GetVideoInfoTag()->m_strTitle;
+  else
+    grouped->GetVideoInfoTag()->m_strSortTitle = set->second.begin()->get()->GetVideoInfoTag()->m_strSortTitle;
+#endif
+}
 
 bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileItemList &items, CFileItemList &groupedItems, GroupAttribute groupAttributes /* = GroupAttributeNone */)
 {
@@ -48,6 +112,8 @@ bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileI
     return true;
 
   SetMap setMap;
+  MovieMap movieMap;
+  EpisodeMap episodeMap;
   for (int index = 0; index < items.Size(); index++)
   {
     bool ungrouped = true;
@@ -59,6 +125,18 @@ bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileI
     {
       ungrouped = false;
       setMap[item->GetVideoInfoTag()->m_iSetId].insert(item);
+    }
+    else if (groupBy & GroupByMovie &&
+      item->HasVideoInfoTag() && !item->GetVideoInfoTag()->m_strIMDBNumber.empty())
+    {
+      ungrouped = false;
+      movieMap[item->GetVideoInfoTag()->m_strIMDBNumber].insert(item);
+    }
+    else if (groupBy & GroupByEpisode &&
+      item->HasVideoInfoTag() && !item->GetVideoInfoTag()->m_strUniqueId.empty())
+    {
+      ungrouped = false;
+      episodeMap[item->GetVideoInfoTag()->m_strUniqueId].insert(item);
     }
 
     if (ungrouped)
@@ -152,6 +230,91 @@ bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileI
     }
   }
 
+  if ((groupBy & GroupByMovie) && movieMap.size() > 0)
+  {
+    CVideoDbUrl itemsUrl;
+    if (!itemsUrl.FromString(baseDir))
+      return false;
+
+    for (MovieMap::const_iterator set = movieMap.begin(); set != movieMap.end(); set++)
+    {
+
+      // only one copy of the movie, so just re-add it
+      if (set->second.size() == 1 && (groupAttributes & GroupAttributeIgnoreSingleItems))
+      {
+        ungroupedItems.Add(*set->second.begin());
+        continue;
+      }
+
+      CFileItemListPtr pItem(new CFileItemList());
+
+      /* Set the video information this ensure sorting and naming works correctly
+      * it will overwrite path so we do this first */
+      pItem->SetFromVideoInfoTag(*set->second.begin()->get()->GetVideoInfoTag());
+
+      /* Zero out the paths, we will fill these in the background VideoThumbLoader */
+      pItem->GetVideoInfoTag()->m_basePath = "";
+      pItem->GetVideoInfoTag()->m_strFileNameAndPath = "";
+
+      std::string basePath = "videodb://movies/titles/";
+      CVideoDbUrl videoUrl;
+      if (!videoUrl.FromString(basePath)) {
+        pItem->SetPath(basePath);
+      }
+      else {
+        videoUrl.AddOptions(itemsUrl.GetOptionsString());
+        videoUrl.AddOption("imbdid", set->first);
+        pItem->SetPath(videoUrl.ToString());
+      }
+
+      /* Add all item to the list and merge together play counts etc. */
+      combine_entries(pItem, set);
+      groupedItems.Add(pItem);
+    }
+  }
+
+  if ((groupBy & GroupByEpisode) && episodeMap.size() > 0)
+  {
+    CVideoDbUrl itemsUrl;
+    if (!itemsUrl.FromString(baseDir))
+      return false;
+
+    for (EpisodeMap::const_iterator set = episodeMap.begin(); set != episodeMap.end(); set++)
+    {
+
+      // only one copy of the episode, so just re-add it
+      if (set->second.size() == 1 && (groupAttributes & GroupAttributeIgnoreSingleItems))
+      {
+        ungroupedItems.Add(*set->second.begin());
+        continue;
+      }
+
+      CFileItemListPtr pItem(new CFileItemList());
+
+      /* Set the video information this ensure sorting and naming works correctly
+       * it will overwrite path so we do this first */
+      pItem->SetFromVideoInfoTag(*set->second.begin()->get()->GetVideoInfoTag());
+
+      /* Zero out the paths, we will fill these in the background VideoThumbLoader */
+      pItem->GetVideoInfoTag()->m_basePath = "";
+      pItem->GetVideoInfoTag()->m_strFileNameAndPath = "";
+
+      std::string basePath = baseDir;
+      CVideoDbUrl videoUrl;
+      if (!videoUrl.FromString(baseDir))
+        pItem->SetPath(basePath);
+      else
+      {
+        videoUrl.AddOptions(itemsUrl.GetOptionsString());
+        videoUrl.AddOption("tvepisodenumber", set->first);
+        pItem->SetPath(videoUrl.ToString());
+      }
+
+      /* Add all item to the list and merge together play counts etc. */
+      combine_entries(pItem, set);
+      groupedItems.Add(pItem);
+    }
+  }
   return true;
 }
 

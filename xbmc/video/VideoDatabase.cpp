@@ -73,6 +73,7 @@
 #include "video/windows/GUIWindowVideoBase.h"
 #include "VideoInfoScanner.h"
 #include "XBDateTime.h"
+#include "windows/GUIWindowVideoNav.h"
 
 using namespace dbiplus;
 using namespace XFILE;
@@ -6109,7 +6110,29 @@ bool CVideoDatabase::GetMoviesNav(const std::string& strBaseDir, CFileItemList& 
     videoUrl.AddOption("tagid", idTag);
 
   Filter filter;
-  return GetMoviesByWhere(videoUrl.ToString(), filter, items, sortDescription);
+  if (!GetMoviesByWhere(videoUrl.ToString(), filter, items, sortDescription))
+    return false;
+
+  // Check if duplicate movies need to be merged or if a single movie is requested
+  if (CSettings::GetInstance().GetInt("videolibrary.groupmovies") != GroupDuplicates::DISABLE) {
+    if (!videoUrl.HasOption("imbdid")) {
+      CFileItemList mergedMovies;
+      if (!GroupUtils::GroupAndMix(GroupByMovie, strBaseDir, items, mergedMovies, GroupAttributeIgnoreSingleItems))
+        return false;
+
+      items.ClearItems();
+      items.Append(mergedMovies);
+    }
+    else {
+      for (int index = 0; index < items.Size(); index++) {
+        const CFileItemPtr item = items.Get(index);
+        // TODO allow some regex rename matching here
+        item->GetVideoInfoTag()->m_strTitle +=
+          " - (" + item->GetVideoInfoTag()->GetPath() + ")";
+      }
+    }
+  }
+  return true;
 }
 
 bool CVideoDatabase::GetMoviesByWhere(const std::string& strBaseDir, const Filter &filter, CFileItemList& items, const SortDescription &sortDescription /* = SortDescription() */)
@@ -6332,7 +6355,29 @@ bool CVideoDatabase::GetEpisodesNav(const std::string& strBaseDir, CFileItemList
     videoUrl.AddOption("directorid", idDirector);
 
   Filter filter;
+  SortDescription s = SortDescription();
+  GetFilter(videoUrl, filter, s);
   bool ret = GetEpisodesByWhere(videoUrl.ToString(), filter, items, false, sortDescription);
+
+  // Check if duplicate episodes need to be merged or if a single episode is requested
+  if (CSettings::GetInstance().GetInt("videolibrary.groupepisodes") != GroupDuplicates::DISABLE) {
+    if (!videoUrl.HasOption("tvepisodenumber")) {
+      CFileItemList mergedEpisodes;
+      if (!GroupUtils::GroupAndMix(GroupByEpisode, videoUrl.ToString(), items, mergedEpisodes, GroupAttributeIgnoreSingleItems))
+        return false;
+
+      items.ClearItems();
+      items.Append(mergedEpisodes);
+    }
+    else {
+      for (int index = 0; index < items.Size(); index++) {
+        const CFileItemPtr item = items.Get(index);
+        // TODO allow some regex rename matching here
+        item->GetVideoInfoTag()->m_strTitle +=
+          " - (" + item->GetVideoInfoTag()->GetPath() + ")";
+      }
+    }
+  }
 
   if (idSeason == -1 && idShow != -1)
   { // add any linked movies
@@ -9211,6 +9256,10 @@ bool CVideoDatabase::GetFilter(CDbUrl &videoUrl, Filter &filter, SortDescription
     if (option != options.end())
       filter.AppendWhere(PrepareSQL("movie_view.idSet = %i", (int)option->second.asInteger()));
 
+    option = options.find("imbdid");
+    if (option != options.end())
+      filter.AppendWhere(PrepareSQL("movie_view.c%02d = '%s'", VIDEODB_ID_IDENT, option->second.asString().c_str()));
+
     option = options.find("set");
     if (option != options.end())
       filter.AppendWhere(PrepareSQL("movie_view.strSet LIKE '%s'", option->second.asString().c_str()));
@@ -9271,6 +9320,10 @@ bool CVideoDatabase::GetFilter(CDbUrl &videoUrl, Filter &filter, SortDescription
       if (idShow > -1)
       {
         bool condition = false;
+
+        option = options.find("tvepisodenumber");
+        if (option != options.end())
+          filter.AppendWhere(PrepareSQL("episode_view.c%02d = '%s'", VIDEODB_ID_EPISODE_UNIQUEID, option->second.asString().c_str()));
 
         AppendIdLinkFilter("genre", "genre", "tvshow", "episode", "idShow", options, filter);
         AppendLinkFilter("genre", "genre", "tvshow", "episode", "idShow", options, filter);
