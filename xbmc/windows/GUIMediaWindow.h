@@ -156,6 +156,9 @@ protected:
   virtual void OnDeleteItem(int iItem);
   void OnRenameItem(int iItem);
 
+  void MinimiseLinks(std::vector<std::string> &items);
+  void FormatDuplicates(CFileItemList &items);
+
   bool WaitForNetwork() const;
 
   /*! \brief Translate the folder to start in from the given quick path

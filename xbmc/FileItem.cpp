@@ -1843,8 +1843,8 @@ bool CFileItemList::Copy(const CFileItemList& items, bool copyItems /* = true */
     // make a copy of each item
     for (int i = 0; i < items.Size(); i++)
     {
-      /* XXX UNDO THIS CHANGE WE NO LONGER COPY HERE */
-      Add(items[i]);
+      CFileItemPtr newItem(new CFileItem(*items[i]));
+      Add(newItem);
     }
   }
 

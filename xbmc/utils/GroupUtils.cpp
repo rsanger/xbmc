@@ -44,13 +44,13 @@ static void combine_entries(CFileItemListPtr &grouped, MovieMap::const_iterator 
 
   groupInfo->m_playCount = 0;
   groupInfo->m_fRating = 0.0f;
+  groupInfo->m_type = MediaTypeVideoCollection;
 
   for (std::set<CFileItemPtr>::const_iterator item = set->second.begin(); item != set->second.end(); item++)
   {
     grouped->Add(*item);
     CVideoInfoTag* itemInfo = (*item)->GetVideoInfoTag();
 
-    itemInfo->m_type = MediaTypeVideoCollection;
     // handle rating
     if (itemInfo->m_fRating > 0.0f)
     {
@@ -240,7 +240,7 @@ bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileI
     {
 
       // only one copy of the movie, so just re-add it
-      if (set->second.size() == 1 && (groupAttributes & GroupAttributeIgnoreSingleItems))
+      if (set->second.size() == 1)
       {
         ungroupedItems.Add(*set->second.begin());
         continue;
@@ -283,7 +283,7 @@ bool GroupUtils::Group(GroupBy groupBy, const std::string &baseDir, const CFileI
     {
 
       // only one copy of the episode, so just re-add it
-      if (set->second.size() == 1 && (groupAttributes & GroupAttributeIgnoreSingleItems))
+      if (set->second.size() == 1)
       {
         ungroupedItems.Add(*set->second.begin());
         continue;

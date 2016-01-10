@@ -317,6 +317,10 @@ bool CVideoThumbLoader::HandleMergedCFileList(CFileItemList *dir, bool cached) {
         if (stream && beststream) {
           if (const_cast<CStreamDetail *>(beststream)->IsWorseThan(const_cast<CStreamDetail *>(stream)))
             thebest = dir->Get(i);
+          // Prefer those with resume points
+          else if (dir->Get(i)->IsResumePointSet() &&
+            !const_cast<CStreamDetail *>(stream)->IsWorseThan(const_cast<CStreamDetail *>(beststream)))
+            thebest = dir->Get(i);
         }
         else if (!beststream && stream) {
           thebest = dir->Get(i);
@@ -350,14 +354,21 @@ bool CVideoThumbLoader::HandleMergedCFileList(CFileItemList *dir, bool cached) {
 
   /* If everything that is going to load has, update this item */
   if (itemsLoaded == dir->Size() || !cached) {
+    dir->SetArt(thebest->GetArt());
+    dir->GetVideoInfoTag()->m_iDbId = -1;
+    if (dir->HasArt("tvshow.fanart"))
+      dir->SetArt("fanart", dir->GetArt("tvshow.fanart"));
+
     if (pickBest) {
       /* Become a file with, meaning play from etc can be used */
       /* Cache the label this is already formated and we don't want to change that */
       std::string tmp = dir->GetLabel();
+      std::string tmp2 = dir->GetLabel2();
       if (thebest.get()) {
         dir->SetFromVideoInfoTag(*thebest->GetVideoInfoTag());
       }
       dir->SetLabel(tmp);
+      dir->SetLabel2(tmp2);
     }
     else {
       /* Show the best of each stream type, and remain as a directory */
@@ -438,7 +449,8 @@ bool CVideoThumbLoader::LoadItemLookup(CFileItem* pItem)
       pItem->GetVideoInfoTag()->m_type != MediaTypeMovie      &&
       pItem->GetVideoInfoTag()->m_type != MediaTypeTvShow     &&
       pItem->GetVideoInfoTag()->m_type != MediaTypeEpisode    &&
-      pItem->GetVideoInfoTag()->m_type != MediaTypeMusicVideo)
+      pItem->GetVideoInfoTag()->m_type != MediaTypeMusicVideo &&
+      typeid(*pItem) != typeid(CFileItemList))
     return false; // Nothing to do here
 
   if (typeid(*pItem) == typeid(CFileItemList)) {

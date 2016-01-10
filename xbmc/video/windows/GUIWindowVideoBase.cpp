@@ -63,6 +63,7 @@
 #include "URL.h"
 #include "utils/GroupUtils.h"
 #include "TextureDatabase.h"
+#include "GUIWindowVideoNav.h"
 
 using namespace XFILE;
 using namespace PLAYLIST;
@@ -1398,6 +1399,10 @@ void CGUIWindowVideoBase::GetGroupedItems(CFileItemList &items)
   if (items.HasProperty(PROPERTY_GROUP_MIXED))
     mixed = items.GetProperty(PROPERTY_GROUP_MIXED).asBoolean();
 
+  /* If we group by set and movie, set takes priority then movie
+   * However I guess a duplicate single movie could be misclasified in a set
+   * rather than as a duplicate movie. Not really a big deal */
+
   // group == "none" completely supresses any grouping
   if (!StringUtils::EqualsNoCase(group, "none"))
   {
@@ -1405,16 +1410,34 @@ void CGUIWindowVideoBase::GetGroupedItems(CFileItemList &items)
     CVideoDatabaseDirectory dir;
     dir.GetQueryParams(items.GetPath(), params);
     VIDEODATABASEDIRECTORY::NODE_TYPE nodeType = CVideoDatabaseDirectory::GetDirectoryChildType(m_strFilterPath);
+    GroupBy groupBys = GroupByNone;
+    GroupAttribute groupAttributes = GroupAttributeIgnoreSingleItems;
+
     if (items.GetContent() == "movies" && params.GetSetId() <= 0 &&
-        nodeType == NODE_TYPE_TITLE_MOVIES &&
+        nodeType == NODE_TYPE_TITLE_MOVIES && !items.GetURL().HasOption("imbdid") &&
        (CSettings::GetInstance().GetBool(CSettings::SETTING_VIDEOLIBRARY_GROUPMOVIESETS) || (StringUtils::EqualsNoCase(group, "sets") && mixed)))
     {
+      groupBys = (GroupBy)((int)groupBys | GroupBySet);
+      groupAttributes = CSettings::GetInstance().GetBool(CSettings::SETTING_VIDEOLIBRARY_GROUPSINGLEITEMSETS) ? GroupAttributeNone : GroupAttributeIgnoreSingleItems;
+    }
+
+    if ((items.GetContent() == "movies" || items.GetContent() == "episodes") && 
+        CSettings::GetInstance().GetInt("videolibrary.groupmovies") != GroupDuplicates::DISABLE &&
+        !items.GetURL().HasOption("imbdid")) {
+      groupBys = (GroupBy)((int)groupBys | GroupByMovie);
+    }
+
+    if (items.GetContent() == "episodes" && CSettings::GetInstance().GetInt("videolibrary.groupepisodes") != GroupDuplicates::DISABLE &&
+        !items.GetURL().HasOption("tvepisodenumber")) {
+      groupBys = (GroupBy)((int)groupBys | GroupByEpisode);
+    }
+    if (groupBys != GroupByNone) {
       CFileItemList groupedItems;
-      GroupAttribute groupAttributes = CSettings::GetInstance().GetBool(CSettings::SETTING_VIDEOLIBRARY_GROUPSINGLEITEMSETS) ? GroupAttributeNone : GroupAttributeIgnoreSingleItems;
-      if (GroupUtils::GroupAndMix(GroupBySet, m_strFilterPath, items, groupedItems, groupAttributes))
+      if (GroupUtils::GroupAndMix(groupBys, m_strFilterPath, items, groupedItems, groupAttributes))
       {
         items.ClearItems();
         items.Append(groupedItems);
+        items.SetSortIgnoreFolders(true);
       }
     }
   }

@@ -68,6 +68,7 @@
 #include "utils/URIUtils.h"
 #include "utils/Variant.h"
 #include "video/VideoLibraryQueue.h"
+#include "video/VideoInfoTag.h"
 
 #define CONTROL_BTNVIEWASICONS       2
 #define CONTROL_BTNSORTBY            3
@@ -613,6 +614,56 @@ void CGUIMediaWindow::FormatItemLabels(CFileItemList &items, const LABEL_MASKS &
     items.ClearSortState();
 }
 
+void CGUIMediaWindow::MinimiseLinks(std::vector<std::string> &items) {
+  size_t head_overlap = -1;
+  for (size_t s_id = 0; s_id < items.size() - 1; ++s_id) {
+    auto& s1 = items[s_id];
+    auto& s2 = items[s_id + 1];
+    size_t shortest = std::min(s1.size(), s2.size());
+    for (size_t index = 0; index < shortest; ++index) {
+      if (s1[index] != s2[index]) {
+        head_overlap = std::min(head_overlap, index);
+        break;
+      }
+      if (index + 1 == shortest){
+        head_overlap = std::min(head_overlap, shortest);
+        break;
+      }
+    }
+  }
+
+  for (std::string &item : items) {
+    // TODO allow some regex rename matching here
+    if (head_overlap > 3) {
+      /* If this falls on a path boundry keep that*/
+      if (item[head_overlap - 1] == '\\'
+        || item[head_overlap - 1] == '/')
+        item = "..." + item.substr(head_overlap - 1);
+      else
+        item = "..." + item.substr(head_overlap);
+    }
+  }
+
+}
+
+void CGUIMediaWindow::FormatDuplicates(CFileItemList &items) {
+  std::vector<std::string> strings;
+
+  if (items.Size() <= 1)
+    return;
+
+  for (int i = 0; i < items.Size(); ++i) {
+    if (items.Get(i)->IsVideo())
+      strings.push_back(items.Get(i)->GetVideoInfoTag()->GetPath());
+  }
+  MinimiseLinks(strings);
+  for (int j = 0, k = 0; j < items.Size(); ++j) {
+    if (items.Get(j)->IsVideo())
+      items.Get(j)->SetLabel(items.Get(j)->GetLabel() + " - (" + strings[k++] + ")");
+  }
+
+}
+
 // \brief Prepares and adds the fileitems list/thumb panel
 void CGUIMediaWindow::FormatAndSort(CFileItemList &items)
 {
@@ -625,6 +676,11 @@ void CGUIMediaWindow::FormatAndSort(CFileItemList &items)
     FormatItemLabels(items, labelMasks);
 
     items.Sort(viewState->GetSortMethod().sortBy, viewState->GetSortOrder(), viewState->GetSortMethod().sortAttributes);
+    if (items.GetURL().HasOption("tvepisodenumber") || items.GetURL().HasOption("imbdid")) {
+      if (items.Size() && items.Get(items.Size() - 1)->IsVideo())
+        items.SetLabel(items.Get(items.Size() - 1)->GetLabel());
+      FormatDuplicates(items);
+    }
   }
 }
 
